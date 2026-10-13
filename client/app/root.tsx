@@ -92,6 +92,11 @@ export default function App() {
             <div className="flex-col flex sm:flex-row">
               <Sidebar />
               <div className="flex flex-col items-center mx-auto w-full ml-0 sm:ml-[58px]">
+                {import.meta.env.DEV && import.meta.env.VITE_KOITO_DEMO === "true" && (
+                  <div role="status" className="w-full px-4 py-3 text-center bg-(--color-bg-secondary) text-(--color-fg-secondary)">
+                    Synthetic demo · Fictional listening history · Read-only
+                  </div>
+                )}
                 <Outlet />
                 <Footer />
               </div>
