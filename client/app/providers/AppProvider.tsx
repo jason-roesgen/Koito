@@ -2,12 +2,14 @@ import { getCfg, type User } from "api/api";
 import { createContext, useContext, useEffect, useState } from "react";
 import pkg from "../../package.json";
 import semver from "semver";
+import { useDashboardPreferences } from "~/hooks/useDashboardPreferences";
 
 function isNewerVersion(current: string, latest: string): boolean {
   return semver.gt(latest, current);
 }
 
 interface AppContextType {
+  dashboard: ReturnType<typeof useDashboardPreferences>;
   user: User | null | undefined;
   configurableHomeActivity: boolean;
   homeItems: number;
@@ -31,6 +33,7 @@ export const useAppContext = () => {
 };
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
+  const dashboard = useDashboardPreferences();
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [defaultTheme, setDefaultTheme] = useState<string | undefined>(
     undefined,
@@ -96,6 +99,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   const contextValue: AppContextType = {
+    dashboard,
     user,
     configurableHomeActivity,
     homeItems,
