@@ -8,6 +8,7 @@ import ApiKeysModal from "./ApiKeysModal";
 import { AsyncButton } from "../AsyncButton";
 import ExportModal from "./ExportModal";
 import About from "./About";
+import DashboardSettings from "./DashboardSettings";
 
 interface Props {
   open: boolean;
@@ -35,6 +36,9 @@ export default function SettingsModal({ open, setOpen }: Props) {
           <TabsTrigger className={triggerClasses} value="Appearance">
             Appearance
           </TabsTrigger>
+          <TabsTrigger className={triggerClasses} value="Dashboard">
+            Dashboard
+          </TabsTrigger>
           <TabsTrigger className={triggerClasses} value="Account">
             Account
           </TabsTrigger>
@@ -59,6 +63,9 @@ export default function SettingsModal({ open, setOpen }: Props) {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="Dashboard" className={contentClasses}>
+          <DashboardSettings />
+        </TabsContent>
         <TabsContent value="Account" className={contentClasses}>
           <AccountPage />
         </TabsContent>
