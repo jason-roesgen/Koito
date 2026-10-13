@@ -48,7 +48,7 @@ export async function clientLoader({ request }: LoaderFunctionArgs) {
     ? { year: now.getFullYear(), month: undefined }
     : parseParams(url.searchParams);
   const params = new URLSearchParams();
-  const rankBy = url.searchParams.get("rank_by") === "time" ? "time" : "plays";
+  const rankBy: "plays" | "time" = url.searchParams.get("rank_by") === "time" ? "time" : "plays";
   params.set("rank_by", rankBy);
   if (isYtd) {
     params.set("from", String(Math.floor(new Date(year, 0, 1).getTime() / 1000)));

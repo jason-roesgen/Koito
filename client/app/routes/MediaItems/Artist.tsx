@@ -1,3 +1,4 @@
+import { useAppContext } from "~/providers/AppProvider";
 import { useLoaderData, type LoaderFunctionArgs } from "react-router";
 import TopTracks from "~/components/TopTracks";
 import { mergeArtists, type Artist } from "api/api";
@@ -19,6 +20,7 @@ export async function clientLoader({ params }: LoaderFunctionArgs) {
 }
 
 export default function Artist() {
+  const { dashboard: { rankBy } } = useAppContext();
   const artist = useLoaderData() as Artist;
   const period = "all_time";
 
@@ -56,6 +58,7 @@ export default function Artist() {
         <div className="flex flex-col gap-10 md:gap-12 mt-8 max-w-[1400px]">
           <div className="flex gap-10 md:gap-20 flex-wrap xl:flex-nowrap items-start">
             <TopTracks
+              rankBy={rankBy}
               limit={8}
               period={period}
               artistId={artist.id}

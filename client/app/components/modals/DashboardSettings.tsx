@@ -21,7 +21,7 @@ export default function DashboardSettings() {
             <option value="time">Listening time (minutes)</option>
           </select>
           <p className="text-sm text-(--color-fg-secondary)">
-            Applies to top artists, albums, and tracks. Time is estimated from track durations per play; unknown durations count as zero.
+            Applies to dashboard rankings and Artist, Album, and Track pages. Time is estimated from track durations per play; unknown durations count as zero.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

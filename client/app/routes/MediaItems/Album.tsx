@@ -1,3 +1,4 @@
+import { useAppContext } from "~/providers/AppProvider";
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import TopTracks from "~/components/TopTracks";
 import { mergeAlbums, type Album } from "api/api";
@@ -19,6 +20,7 @@ export async function clientLoader({ params }: LoaderFunctionArgs) {
 }
 
 export default function Album() {
+  const { dashboard: { rankBy } } = useAppContext();
   const album = useLoaderData() as Album;
   const period = "all_time";
 
@@ -71,6 +73,7 @@ export default function Album() {
       <div className="flex flex-col gap-10 md:gap-12 mt-8 max-w-[1400px]">
         <div className="flex gap-10 md:gap-20 flex-wrap xl:flex-nowrap items-start">
           <TopTracks
+              rankBy={rankBy}
             limit={8}
             period={period}
             albumId={album.id}
