@@ -18,6 +18,7 @@ export const defaults: Visibility = {
 const storageKey = "koito.dashboard.visibility.v1";
 
 export function useDashboardPreferences() {
+  const [rankBy, setRankBy] = useState<"plays" | "time">("plays");
   const [visible, setVisible] = useState<Visibility>(defaults);
   const [ready, setReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
@@ -25,6 +26,7 @@ export function useDashboardPreferences() {
   // Read after mounting so browser preferences do not cause hydration mismatches.
   useEffect(() => {
     try {
+      setRankBy(localStorage.getItem("koito.dashboard.rankBy.v1") === "time" ? "time" : "plays");
       const raw = localStorage.getItem(storageKey);
       const saved: unknown = raw ? JSON.parse(raw) : null;
       if (saved && typeof saved === "object" && !Array.isArray(saved)) {
@@ -51,5 +53,15 @@ export function useDashboardPreferences() {
     }
   }
 
-  return { visible, ready, storageError, updateVisibility };
+  function updateRankBy(value: "plays" | "time") {
+    setRankBy(value);
+    try {
+      localStorage.setItem("koito.dashboard.rankBy.v1", value);
+      setStorageError(false);
+    } catch {
+      setStorageError(true);
+    }
+  }
+
+  return { rankBy, updateRankBy, visible, ready, storageError, updateVisibility };
 }

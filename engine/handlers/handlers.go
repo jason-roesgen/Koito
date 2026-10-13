@@ -66,12 +66,13 @@ func OptsFromRequest(r *http.Request) db.GetItemsOpts {
 		limit, page, tf.Week, tf.Month, tf.Year, tf.FromUnix, tf.ToUnix, artistId, albumId, trackId, period)
 
 	return db.GetItemsOpts{
-		Limit:     limit,
-		Page:      page,
-		Timeframe: tf,
-		ArtistID:  artistId,
-		AlbumID:   albumId,
-		TrackID:   trackId,
+		RankByTime: r.URL.Query().Get("rank_by") == "time",
+		Limit:      limit,
+		Page:       page,
+		Timeframe:  tf,
+		ArtistID:   artistId,
+		AlbumID:    albumId,
+		TrackID:    trackId,
 	}
 }
 

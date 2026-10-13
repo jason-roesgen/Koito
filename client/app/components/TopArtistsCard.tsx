@@ -1,3 +1,4 @@
+import { rankingLabel } from "~/utils/ranking";
 import {
   apiFetch,
   type PaginatedResponse,
@@ -11,16 +12,17 @@ import { Link } from "react-router";
 import { TopCardSkeleton } from "./skeletons/TopCardSkeleton";
 
 interface Props {
+  rankBy?: "plays" | "time";
   period: string;
 }
 
 const getTopArtists = (args: { limit: number; period: string; page: number }) =>
   apiFetch<PaginatedResponse<Ranked<Artist>>>("/apis/web/v1/top/artists", args);
 
-export default function TopArtistsCard({ period }: Props) {
+export default function TopArtistsCard({ period, rankBy = "plays" }: Props) {
   const numItems = 5;
 
-  const args = { limit: numItems, period: period, page: 0 };
+  const args = { limit: numItems, period: period, page: 0, rank_by: rankBy };
   const { isPending, isError, data, error } = useQuery({
     queryKey: ["top/artists", args],
     queryFn: () => getTopArtists(args),
@@ -33,7 +35,7 @@ export default function TopArtistsCard({ period }: Props) {
   } else if (isError) {
     return (
       <div className="w-[300px]">
-        <CardHeader to={`/chart/top/artists?period=${period}`} isOffset>
+        <CardHeader to={`/chart/top/artists?period=${period}&rank_by=${rankBy}`} isOffset>
           {header}
         </CardHeader>
         <p className="error">Error: {error.message}</p>
@@ -44,7 +46,7 @@ export default function TopArtistsCard({ period }: Props) {
   if (!data.items[0]) {
     return (
       <div className="w-[348px]">
-        <CardHeader to={`/chart/top/artists?period=${period}`} isOffset>
+        <CardHeader to={`/chart/top/artists?period=${period}&rank_by=${rankBy}`} isOffset>
           {header}
         </CardHeader>
         <p className="ml-6 mt-6">Nothing to show</p>
@@ -54,7 +56,7 @@ export default function TopArtistsCard({ period }: Props) {
 
   return (
     <div>
-      <CardHeader to={`/chart/top/artists?period=${period}`} isOffset>
+      <CardHeader to={`/chart/top/artists?period=${period}&rank_by=${rankBy}`} isOffset>
         {header}
       </CardHeader>
       <div className="max-w-[350px] card">
@@ -98,7 +100,7 @@ export default function TopArtistsCard({ period }: Props) {
               </h5>
             </Link>
             <div className="color-fg-secondary">
-              {data.items[0]?.item.listen_count} plays
+              {rankingLabel(data.items[0].item, rankBy)}
             </div>
           </div>
         </div>
@@ -114,7 +116,7 @@ export default function TopArtistsCard({ period }: Props) {
                 link={`/artist/${i.item.id}`}
                 alt={i.item.name}
                 title={i.item.name}
-                meta={`${i.item.listen_count} plays`}
+                meta={rankingLabel(i.item, rankBy)}
               />
             </div>
           ))}

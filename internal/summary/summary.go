@@ -33,11 +33,15 @@ type summaryStore interface {
 }
 
 func GenerateSummary(ctx context.Context, store summaryStore, userId int32, timeframe db.Timeframe, title string) (summary *Summary, err error) {
-	// l := logger.FromContext(ctx)
+	return GenerateSummaryWithRanking(ctx, store, userId, timeframe, title, false)
+}
+
+// GenerateSummaryWithRanking selects the top items by the requested metric before limiting.
+func GenerateSummaryWithRanking(ctx context.Context, store summaryStore, userId int32, timeframe db.Timeframe, title string, rankByTime bool) (summary *Summary, err error) {
 
 	summary = new(Summary)
 
-	topArtists, err := store.GetTopArtistsPaginated(ctx, db.GetItemsOpts{Page: 1, Limit: 5, Timeframe: timeframe})
+	topArtists, err := store.GetTopArtistsPaginated(ctx, db.GetItemsOpts{Page: 1, Limit: 5, Timeframe: timeframe, RankByTime: rankByTime})
 	if err != nil {
 		return nil, fmt.Errorf("GenerateSummary: %w", err)
 	}
@@ -56,7 +60,7 @@ func GenerateSummary(ctx context.Context, store summaryStore, userId int32, time
 		summary.TopArtists[i].Item.ListenCount = listens
 	}
 
-	topAlbums, err := store.GetTopAlbumsPaginated(ctx, db.GetItemsOpts{Page: 1, Limit: 5, Timeframe: timeframe})
+	topAlbums, err := store.GetTopAlbumsPaginated(ctx, db.GetItemsOpts{Page: 1, Limit: 5, Timeframe: timeframe, RankByTime: rankByTime})
 	if err != nil {
 		return nil, fmt.Errorf("GenerateSummary: %w", err)
 	}
@@ -75,7 +79,7 @@ func GenerateSummary(ctx context.Context, store summaryStore, userId int32, time
 		summary.TopAlbums[i].Item.ListenCount = listens
 	}
 
-	topTracks, err := store.GetTopTracksPaginated(ctx, db.GetItemsOpts{Page: 1, Limit: 5, Timeframe: timeframe})
+	topTracks, err := store.GetTopTracksPaginated(ctx, db.GetItemsOpts{Page: 1, Limit: 5, Timeframe: timeframe, RankByTime: rankByTime})
 	if err != nil {
 		return nil, fmt.Errorf("GenerateSummary: %w", err)
 	}

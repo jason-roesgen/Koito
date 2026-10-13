@@ -17,7 +17,7 @@ export function meta({}: Route.MetaArgs) {
 export default function Home() {
   const [period, setPeriod] = useState("week");
   const { dashboard } = useAppContext();
-  const { visible, ready } = dashboard;
+  const { visible, ready, rankBy } = dashboard;
 
   const showRankings = visible.artists || visible.albums || visible.tracks;
   const showAny = sectionKeys.some(key => visible[key]);
@@ -41,10 +41,11 @@ export default function Home() {
             {showRankings && <PeriodSelector setter={setPeriod} current={period} />}
             {(showRankings || visible.recent) && (
               <div className="container justify-center flex flex-wrap gap-10">
-                {visible.artists && <TopArtistsCard period={period} />}
-                {visible.albums && <TopAlbumsCard period={period} />}
+                {visible.artists && <TopArtistsCard rankBy={rankBy} period={period} />}
+                {visible.albums && <TopAlbumsCard rankBy={rankBy} period={period} />}
                 {visible.tracks && (
                   <TopTracks
+                    rankBy={rankBy}
                     period={period}
                     limit={10}
                     className="min-w-[350px] w-full max-w-[750px] 2xl:max-w-[450px]"

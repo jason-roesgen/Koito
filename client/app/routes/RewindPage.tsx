@@ -48,6 +48,8 @@ export async function clientLoader({ request }: LoaderFunctionArgs) {
     ? { year: now.getFullYear(), month: undefined }
     : parseParams(url.searchParams);
   const params = new URLSearchParams();
+  const rankBy = url.searchParams.get("rank_by") === "time" ? "time" : "plays";
+  params.set("rank_by", rankBy);
   if (isYtd) {
     params.set("from", String(Math.floor(new Date(year, 0, 1).getTime() / 1000)));
     params.set("to", String(Math.floor(now.getTime() / 1000)));
@@ -62,13 +64,13 @@ export async function clientLoader({ request }: LoaderFunctionArgs) {
   stats.title = isYtd
     ? `Your ${year} Year to Date`
     : `Your ${month && month > 0 ? months[month - 1] + " " : ""}${year} Rewind`;
-  return { stats, year, month, isYtd, asOf: now.toISOString() };
+  return { stats, year, month, isYtd, rankBy, asOf: now.toISOString() };
 }
 
 export default function RewindPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { stats, year: loadedYear, month: loadedMonth, isYtd, asOf } = useLoaderData<typeof clientLoader>();
+  const { stats, year: loadedYear, month: loadedMonth, isYtd, rankBy, asOf } = useLoaderData<typeof clientLoader>();
   const { firstActivity } = useAppContext();
 
   const [year, setYear] = useState(loadedYear);
@@ -198,11 +200,29 @@ export default function RewindPage() {
                 ))}
               </div>
             )}
+            <div className="flex flex-col gap-2 w-full">
+              <label htmlFor="rewind-ranking">Rank by</label>
+              <select
+                id="rewind-ranking"
+                className="p-2 border rounded-(--border-radius) bg-(--color-bg)"
+                value={rankBy}
+                onChange={event => updateParams({ rank_by: event.target.value })}
+              >
+                <option value="plays">Plays</option>
+                <option value="time">Listening time</option>
+              </select>
+              {rankBy === "time" && (
+                <p className="text-sm text-(--color-fg-secondary)">
+                  Estimated from track durations per play. Unknown durations count as zero.
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <input
                 id="show-time-checkbox"
                 type="checkbox"
-                checked={showTime}
+                checked={showTime || rankBy === "time"}
+                disabled={rankBy === "time"}
                 onChange={(e) => setShowTime(e.target.checked)}
               />
               <label htmlFor="show-time-checkbox">Show time listened?</label>
@@ -237,7 +257,7 @@ export default function RewindPage() {
             </button>
             <button
               className="period-selector"
-              onClick={() => navigate("/rewind?period=ytd")}
+              onClick={() => navigate(`/rewind?period=ytd&rank_by=${rankBy}`)}
               disabled={isYtd}
             >
               YEAR TO DATE
@@ -249,7 +269,7 @@ export default function RewindPage() {
               {" · Your local timezone · Through the time this summary loaded"}
             </p>
           )}
-          {stats && <Rewind stats={stats} includeTime={showTime} />}
+          {stats && <Rewind stats={stats} rankBy={rankBy} includeTime={showTime || rankBy === "time"} />}
         </div>
       </div>
     </div>

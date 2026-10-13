@@ -1,3 +1,4 @@
+import { rankingLabel } from "~/utils/ranking";
 import {
   apiFetch,
   type PaginatedResponse,
@@ -12,16 +13,17 @@ import { Link } from "react-router";
 import { TopCardSkeleton } from "./skeletons/TopCardSkeleton";
 
 interface Props {
+  rankBy?: "plays" | "time";
   period: string;
 }
 
 const getTopAlbums = (args: { limit: number; period: string; page: number }) =>
   apiFetch<PaginatedResponse<Ranked<Album>>>("/apis/web/v1/top/albums", args);
 
-export default function TopAlbumsCard({ period }: Props) {
+export default function TopAlbumsCard({ period, rankBy = "plays" }: Props) {
   const numItems = 5;
 
-  const args = { limit: numItems, period: period, page: 0 };
+  const args = { limit: numItems, period: period, page: 0, rank_by: rankBy };
   const { isPending, isError, data, error } = useQuery({
     queryKey: ["top/albums", args],
     queryFn: () => getTopAlbums(args),
@@ -34,7 +36,7 @@ export default function TopAlbumsCard({ period }: Props) {
   } else if (isError) {
     return (
       <div className="w-[350px]">
-        <CardHeader to={`/chart/top/albums?period=${period}`} isOffset>
+        <CardHeader to={`/chart/top/albums?period=${period}&rank_by=${rankBy}`} isOffset>
           {header}
         </CardHeader>
         <p className="error">Error: {error.message}</p>
@@ -45,7 +47,7 @@ export default function TopAlbumsCard({ period }: Props) {
   if (!data.items[0]) {
     return (
       <div className="w-[350px]">
-        <CardHeader to={`/chart/top/albums?period=${period}`} isOffset>
+        <CardHeader to={`/chart/top/albums?period=${period}&rank_by=${rankBy}`} isOffset>
           {header}
         </CardHeader>
         <p className="ml-6 mt-6">Nothing to show</p>
@@ -55,7 +57,7 @@ export default function TopAlbumsCard({ period }: Props) {
 
   return (
     <div>
-      <CardHeader to={`/chart/top/albums?period=${period}`} isOffset>
+      <CardHeader to={`/chart/top/albums?period=${period}&rank_by=${rankBy}`} isOffset>
         {header}
       </CardHeader>
       <div className="max-w-[350px] card">
@@ -107,7 +109,7 @@ export default function TopAlbumsCard({ period }: Props) {
                 }
               />
               <div className="color-fg-secondary">
-                {data.items[0]?.item.listen_count} plays
+                {rankingLabel(data.items[0].item, rankBy)}
               </div>
             </div>
           </div>
@@ -125,7 +127,7 @@ export default function TopAlbumsCard({ period }: Props) {
                 title={i.item.title}
                 alt={i.item.title}
                 subtitle={<ArtistLinks artists={[i.item.artists[0]]} />}
-                meta={`${i.item.listen_count} plays`}
+                meta={rankingLabel(i.item, rankBy)}
               />
             </div>
           ))}
