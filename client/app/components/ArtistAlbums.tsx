@@ -1,3 +1,5 @@
+import { useAppContext } from "~/providers/AppProvider";
+import { rankingLabel } from "~/utils/ranking";
 import { useQuery } from "@tanstack/react-query";
 import {
   apiFetch,
@@ -8,11 +10,12 @@ import {
 import MediaItem from "./primitives/MediaItem";
 import CardHeader from "./primitives/CardHeader";
 
-const getArtistAlbums = (artistId: number) =>
+const getArtistAlbums = (artistId: number, rankBy: "plays" | "time") =>
   apiFetch<PaginatedResponse<Ranked<Album>>>("/apis/web/v1/top/albums", {
     period: "all_time",
     limit: 99,
     artist_id: artistId,
+    rank_by: rankBy,
   });
 
 interface Props {
@@ -22,9 +25,10 @@ interface Props {
 }
 
 export default function ArtistAlbums({ artistId, name }: Props) {
+  const { dashboard: { rankBy } } = useAppContext();
   const { isPending, isError, data, error } = useQuery({
-    queryKey: ["artist-albums", artistId],
-    queryFn: () => getArtistAlbums(artistId),
+    queryKey: ["artist-albums", artistId, rankBy],
+    queryFn: () => getArtistAlbums(artistId, rankBy),
   });
 
   if (isPending) {
@@ -58,7 +62,7 @@ export default function ArtistAlbums({ artistId, name }: Props) {
               alt={item.item.title}
               alignTop
               title={item.item.title}
-              meta={`${item.item.listen_count} plays`}
+              meta={rankingLabel(item.item, rankBy)}
             />
           </div>
         ))}

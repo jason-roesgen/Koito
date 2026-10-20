@@ -3,7 +3,7 @@ import { defaults, sections, sectionKeys } from "~/hooks/useDashboardPreferences
 
 export default function DashboardSettings() {
   const { dashboard } = useAppContext();
-  const { visible, ready, storageError, updateVisibility } = dashboard;
+  const { rankBy, updateRankBy, visible, ready, storageError, updateVisibility } = dashboard;
   return (
     <section>
       <h2 className="text-xl font-semibold">Dashboard</h2>
@@ -12,6 +12,18 @@ export default function DashboardSettings() {
       </p>
       <fieldset disabled={!ready} className="mt-4">
         <legend className="sr-only">Visible dashboard sections</legend>
+        <div className="flex flex-col gap-2 mb-6">
+          <label htmlFor="dashboard-ranking">Rank by</label>
+          <select id="dashboard-ranking" value={rankBy}
+            className="p-2 border rounded-(--border-radius) bg-(--color-bg)"
+            onChange={event => updateRankBy(event.target.value === "time" ? "time" : "plays")}>
+            <option value="plays">Plays</option>
+            <option value="time">Listening time (minutes)</option>
+          </select>
+          <p className="text-sm text-(--color-fg-secondary)">
+            Applies to dashboard rankings and Artist, Album, and Track pages. Time is estimated from track durations per play; unknown durations count as zero.
+          </p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {sectionKeys.map(key => (
             <label key={key} className="flex items-center gap-3 cursor-pointer">
@@ -25,7 +37,7 @@ export default function DashboardSettings() {
             </label>
           ))}
         </div>
-        <button className="default mt-4" type="button" onClick={() => updateVisibility({ ...defaults })}>
+        <button className="default mt-4" type="button" onClick={() => { updateVisibility({ ...defaults }); updateRankBy("plays"); }}>
           Reset to defaults
         </button>
       </fieldset>

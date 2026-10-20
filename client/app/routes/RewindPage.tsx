@@ -1,6 +1,6 @@
 import Rewind from "~/components/rewind/Rewind";
 import { type RewindStats } from "api/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useLocation, useNavigate } from "react-router";
 import { getRewindParams } from "~/utils/utils";
@@ -42,25 +42,36 @@ const parseParams = (
 
 export async function clientLoader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
-  const { year, month } = parseParams(url.searchParams);
-
-  const res = await fetch(`/apis/web/v1/summary?year=${year}&month=${month}`);
+  const isYtd = url.searchParams.get("period") === "ytd";
+  const now = new Date();
+  const { year, month } = isYtd
+    ? { year: now.getFullYear(), month: undefined }
+    : parseParams(url.searchParams);
+  const params = new URLSearchParams();
+  const rankBy: "plays" | "time" = url.searchParams.get("rank_by") === "time" ? "time" : "plays";
+  params.set("rank_by", rankBy);
+  if (isYtd) {
+    params.set("from", String(Math.floor(new Date(year, 0, 1).getTime() / 1000)));
+    params.set("to", String(Math.floor(now.getTime() / 1000)));
+  } else {
+    params.set("year", String(year));
+    if (month) params.set("month", String(month));
+  }
+  const res = await fetch(`/apis/web/v1/summary?${params}`);
   if (!res.ok) throw new Response("Failed to load summary", { status: 500 });
 
   const stats: RewindStats = await res.json();
-  stats.title = `Your ${month && month > 0 ? months[month - 1] : ""} ${year} Rewind`;
-  return { stats };
+  stats.title = isYtd
+    ? `Your ${year} Year to Date`
+    : `Your ${month && month > 0 ? months[month - 1] + " " : ""}${year} Rewind`;
+  return { stats, year, month, isYtd, rankBy, asOf: now.toISOString() };
 }
 
 export default function RewindPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { stats } = useLoaderData<{ stats: RewindStats }>();
+  const { stats, year: loadedYear, month: loadedMonth, isYtd, rankBy, asOf } = useLoaderData<typeof clientLoader>();
   const { firstActivity } = useAppContext();
-
-  const { year: loadedYear, month: loadedMonth } = parseParams(
-    new URLSearchParams(location.search),
-  );
 
   const [year, setYear] = useState(loadedYear);
   const [month, setMonth] = useState(loadedMonth);
@@ -68,6 +79,12 @@ export default function RewindPage() {
     !loadedMonth || loadedMonth === 0,
   );
   const [showTime, setShowTime] = useState(false);
+
+  useEffect(() => {
+    setYear(loadedYear);
+    setMonth(loadedMonth);
+    setShowYearly(!loadedMonth);
+  }, [loadedYear, loadedMonth, isYtd]);
 
   const updateParams = (updates: Record<string, string | null>) => {
     const nextParams = new URLSearchParams(location.search);
@@ -79,7 +96,7 @@ export default function RewindPage() {
 
   const navigateMonth = (newMonth: number) => {
     setMonth(newMonth);
-    updateParams({ year: year.toString(), month: newMonth.toString() });
+    updateParams({ period: null, year: year.toString(), month: newMonth.toString() });
   };
 
   const navigateYear = (direction: "prev" | "next") => {
@@ -111,7 +128,7 @@ export default function RewindPage() {
       <div className="flex flex-col lg:flex-row items-center lg:items-start lg:mt-15 mt-5 gap-10 w-19/20 mx-auto px-5 md:px-10">
         <div className="flex flex-col items-start gap-4">
           <div className="flex flex-col items-center gap-4 mt-4 sm:mt-14 w-[250px] mx-auto">
-            {!showYearly && (
+            {!isYtd && !showYearly && (
               <>
                 <div className="flex items-center gap-6 justify-around">
                   <button
@@ -157,7 +174,7 @@ export default function RewindPage() {
                 </div>
               </>
             )}
-            {showYearly && firstActivity && (
+            {!isYtd && showYearly && firstActivity && (
               <div className="grid grid-cols-2 gap-2">
                 {Array.from(
                   {
@@ -174,7 +191,7 @@ export default function RewindPage() {
                     onClick={() => {
                       setYear(y);
                       setMonth(undefined);
-                      updateParams({ year: y.toString(), month: null });
+                      updateParams({ period: null, year: y.toString(), month: null });
                     }}
                     disabled={(!month || month === 0) && y === year}
                   >
@@ -183,11 +200,29 @@ export default function RewindPage() {
                 ))}
               </div>
             )}
+            <div className="flex flex-col gap-2 w-full">
+              <label htmlFor="rewind-ranking">Rank by</label>
+              <select
+                id="rewind-ranking"
+                className="p-2 border rounded-(--border-radius) bg-(--color-bg)"
+                value={rankBy}
+                onChange={event => updateParams({ rank_by: event.target.value })}
+              >
+                <option value="plays">Plays</option>
+                <option value="time">Listening time</option>
+              </select>
+              {rankBy === "time" && (
+                <p className="text-sm text-(--color-fg-secondary)">
+                  Estimated from track durations per play. Unknown durations count as zero.
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <input
                 id="show-time-checkbox"
                 type="checkbox"
-                checked={showTime}
+                checked={showTime || rankBy === "time"}
+                disabled={rankBy === "time"}
                 onChange={(e) => setShowTime(e.target.checked)}
               />
               <label htmlFor="show-time-checkbox">Show time listened?</label>
@@ -195,23 +230,46 @@ export default function RewindPage() {
           </div>
         </div>
         <div className="flex flex-col items-center gap-4">
-          <div className="flex justify-around w-2/3 mb-4">
+          <div className="flex flex-wrap justify-center gap-6 w-full mb-4">
             <button
               className="period-selector"
-              onClick={() => setShowYearly(false)}
-              disabled={!showYearly}
+              onClick={() => {
+                setShowYearly(false);
+                if (isYtd) {
+                  const now = new Date();
+                  const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                  updateParams({ period: null, year: String(previous.getFullYear()), month: String(previous.getMonth() + 1) });
+                }
+              }}
+              disabled={!isYtd && !showYearly}
             >
               MONTHLY
             </button>
             <button
               className="period-selector"
-              onClick={() => setShowYearly(true)}
-              disabled={showYearly}
+              onClick={() => {
+                setShowYearly(true);
+                if (isYtd) updateParams({ period: null, year: String(new Date().getFullYear() - 1), month: null });
+              }}
+              disabled={!isYtd && showYearly}
             >
               YEARLY
             </button>
+            <button
+              className="period-selector"
+              onClick={() => navigate(`/rewind?period=ytd&rank_by=${rankBy}`)}
+              disabled={isYtd}
+            >
+              YEAR TO DATE
+            </button>
           </div>
-          {stats && <Rewind stats={stats} includeTime={showTime} />}
+          {isYtd && (
+            <p className="text-sm text-(--color-fg-secondary) text-center">
+              January 1 – {new Date(asOf).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+              {" · Your local timezone · Through the time this summary loaded"}
+            </p>
+          )}
+          {stats && <Rewind stats={stats} rankBy={rankBy} includeTime={showTime || rankBy === "time"} />}
         </div>
       </div>
     </div>

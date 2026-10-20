@@ -5,3 +5,6 @@
 # React Router
 /.react-router/
 /build/
+
+# Local development settings
+.env.local

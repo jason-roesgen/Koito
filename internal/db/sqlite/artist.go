@@ -375,28 +375,29 @@ func (s *Sqlite) GetTopArtistsPaginated(ctx context.Context, opts db.GetItemsOpt
 	t1, t2 := db.TimeframeToTimeRange(opts.Timeframe)
 
 	// Unified query using CTEs, deferred joins, and a total_count window function
-	query := `
+	query := fmt.Sprintf(`
 		WITH ArtistCounts AS (
-			SELECT at2.artist_id, COUNT(*) AS listen_count
+			SELECT at2.artist_id, COUNT(*) AS listen_count, COALESCE(SUM(t.duration), 0) AS time_listened
 			FROM listens l
+			JOIN tracks t ON l.track_id = t.id
 			JOIN artist_tracks at2 ON l.track_id = at2.track_id
 			WHERE l.listened_at BETWEEN ? AND ?
 			GROUP BY at2.artist_id
 		),
 		RankedArtists AS (
 			SELECT artist_id,
-			       listen_count,
-			       RANK() OVER (ORDER BY listen_count DESC) AS rank,
+			       listen_count, time_listened,
+			       RANK() OVER (ORDER BY %s DESC) AS rank,
 			       COUNT(*) OVER () AS total_count
 			FROM ArtistCounts
-			ORDER BY listen_count DESC, artist_id
+			ORDER BY %s DESC, artist_id
 			LIMIT ? OFFSET ?
 		)
-		SELECT r.artist_id, awn.name, a.musicbrainz_id, a.image, r.listen_count, r.rank, r.total_count
+		SELECT r.artist_id, awn.name, a.musicbrainz_id, a.image, r.listen_count, r.time_listened, r.rank, r.total_count
 		FROM RankedArtists r
 		JOIN artists a ON a.id = r.artist_id
 		JOIN artists_with_name awn ON awn.id = r.artist_id
-		ORDER BY r.rank, r.artist_id`
+		ORDER BY r.rank, r.artist_id`, rankingColumn(opts), rankingColumn(opts))
 
 	rows, err := s.db.QueryContext(ctx, query, t1.Unix(), t2.Unix(), opts.Limit, offset)
 	if err != nil {
@@ -414,7 +415,7 @@ func (s *Sqlite) GetTopArtistsPaginated(ctx context.Context, opts db.GetItemsOpt
 		var item db.RankedItem[*models.Artist]
 
 		// Scan totalCount alongside the row data
-		if err := rows.Scan(&a.ID, &a.Name, &mbzID, &image, &a.ListenCount, &item.Rank, &totalCount); err != nil {
+		if err := rows.Scan(&a.ID, &a.Name, &mbzID, &image, &a.ListenCount, &a.TimeListened, &item.Rank, &totalCount); err != nil {
 			return nil, err
 		}
 

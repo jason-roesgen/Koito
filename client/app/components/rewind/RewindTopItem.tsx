@@ -7,6 +7,7 @@ type TopItemProps<T> = {
   items: Ranked<T>[];
   getLabel: (item: T) => string;
   includeTime?: boolean;
+  rankBy?: "plays" | "time";
 };
 
 export function RewindTopItem<
@@ -15,8 +16,15 @@ export function RewindTopItem<
     listen_count: number;
     time_listened: number;
   },
->({ title, imageSrc, items, getLabel, includeTime }: TopItemProps<T>) {
+>({ title, imageSrc, items, getLabel, includeTime, rankBy = "plays" }: TopItemProps<T>) {
   const [top, ...rest] = items;
+  const listeningLabel = (item: T) => {
+    const plays = `${item.listen_count.toLocaleString()} plays`;
+    const minutes = `${Math.floor(item.time_listened / 60).toLocaleString()} minutes`;
+    return rankBy === "time"
+      ? `${minutes} (${plays})`
+      : includeTime ? `${plays} (${minutes})` : plays;
+  };
 
   if (!top) return null;
 
@@ -44,10 +52,7 @@ export function RewindTopItem<
               {getLabel(top.item)}
             </h5>
             <span className="text-(--color-fg-secondary) -mt-2 text-sm">
-              {`${top.item.listen_count} plays`}
-              {includeTime
-                ? ` (${Math.floor(top.item.time_listened / 60)} minutes)`
-                : ``}
+              {listeningLabel(top.item)}
             </span>
           </div>
         </div>
@@ -56,10 +61,7 @@ export function RewindTopItem<
           <div key={e.item.id} className="text-sm max-w-90 wrap-normal">
             {getLabel(e.item)}
             <span className="text-(--color-fg-secondary)">
-              {` - ${e.item.listen_count} plays`}
-              {includeTime
-                ? ` (${Math.floor(e.item.time_listened / 60)} minutes)`
-                : ``}
+              {` - ${listeningLabel(e.item)}`}
             </span>
           </div>
         ))}

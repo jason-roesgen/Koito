@@ -124,9 +124,10 @@ type AddArtistsToTrackOpts struct {
 }
 
 type GetItemsOpts struct {
-	Limit     int
-	Page      int
-	Timeframe Timeframe
+	RankByTime bool // Rank by summed track durations instead of play count.
+	Limit      int
+	Page       int
+	Timeframe  Timeframe
 
 	// Used only for getting top tracks
 	ArtistID int

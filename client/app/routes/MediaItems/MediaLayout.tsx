@@ -10,7 +10,6 @@ import DeleteModal from "~/components/modals/DeleteModal";
 import EditModal from "~/components/modals/EditModal/EditModal";
 import AddListenModal from "~/components/modals/AddListenModal";
 import MbzIcon from "~/components/icons/MbzIcon";
-import { timeListenedString } from "~/utils/utils";
 import { Link } from "react-router";
 import useWindowWidth from "~/hooks/useWindowWidth";
 
@@ -48,7 +47,7 @@ export default function MediaLayout(props: Props) {
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [addListenModalOpen, setAddListenModalOpen] = useState(false);
-  const { user } = useAppContext();
+  const { user, dashboard: { rankBy } } = useAppContext();
 
   useEffect(() => {
     average(props.img.xs, { amount: 1 }).then((color) => {
@@ -112,20 +111,17 @@ export default function MediaLayout(props: Props) {
               >
                 {props.title}
                 <span className="text-xl font-medium text-(--color-fg-secondary) pl-2">
-                  {props.rank !== 0 && "#" + props.rank}
+                  {props.rank !== 0 && `#${props.rank.toLocaleString()} by plays`}
                 </span>
               </h5>
             </div>
             <div className="flex flex-col gap-1.5 items-start">
               {props.subContent}
-              {props.listenCount > 0 && (
-                <p>
-                  {props.listenCount} play{props.listenCount > 1 ? "s" : ""}
-                </p>
-              )}
-              {props.timeListened !== 0 && (
-                <p title={Math.floor(props.timeListened / 60 / 60) + " hours"}>
-                  {timeListenedString(props.timeListened)}
+              {(props.listenCount > 0 || props.timeListened > 0) && (
+                <p title="All-time totals. Listening time is estimated from known track durations.">
+                  {rankBy === "time"
+                    ? `${Math.floor(props.timeListened / 60).toLocaleString()} minutes (${props.listenCount.toLocaleString()} plays)`
+                    : `${props.listenCount.toLocaleString()} plays (${Math.floor(props.timeListened / 60).toLocaleString()} minutes)`}
                 </p>
               )}
               {props.firstListen > 0 && (

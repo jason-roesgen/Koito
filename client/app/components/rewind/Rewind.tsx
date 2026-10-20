@@ -5,6 +5,7 @@ import { RewindTopItem } from "./RewindTopItem";
 interface Props {
   stats: RewindStats;
   includeTime?: boolean;
+  rankBy?: "plays" | "time";
 }
 
 export default function Rewind(props: Props) {
@@ -45,6 +46,7 @@ export default function Rewind(props: Props) {
         imageSrc={artistimg?.medium}
         items={props.stats.top_artists}
         getLabel={(a) => a.name}
+        rankBy={props.rankBy}
         includeTime={props.includeTime}
       />
 
@@ -53,6 +55,7 @@ export default function Rewind(props: Props) {
         imageSrc={albumimg?.medium}
         items={props.stats.top_albums}
         getLabel={(a) => a.title}
+        rankBy={props.rankBy}
         includeTime={props.includeTime}
       />
 
@@ -61,6 +64,7 @@ export default function Rewind(props: Props) {
         imageSrc={trackimg?.medium}
         items={props.stats.top_tracks}
         getLabel={(t) => t.title}
+        rankBy={props.rankBy}
         includeTime={props.includeTime}
       />
 

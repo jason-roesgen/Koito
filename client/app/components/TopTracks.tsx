@@ -10,6 +10,7 @@ import TopItemList, { TopItemListSkeleton } from "./TopItemList";
 import CardHeader from "./primitives/CardHeader";
 
 interface Props {
+  rankBy?: "plays" | "time";
   limit: number;
   period: string;
   className?: string;
@@ -34,6 +35,7 @@ const TopTracks = (props: Props) => {
     artist_id: props.artistId as number | undefined,
     album_id: props.albumId as number | undefined,
     page: 0,
+    rank_by: props.rankBy ?? "plays",
   };
   const { isPending, isError, data, error } = useQuery({
     queryKey: ["top/tracks", args],
@@ -61,7 +63,7 @@ const TopTracks = (props: Props) => {
   }
   if (!data.items) return;
 
-  let params = "";
+  let params = `&rank_by=${props.rankBy ?? "plays"}`;
   params += props.artistId ? `&artist_id=${props.artistId}` : "";
   params += props.albumId ? `&album_id=${props.albumId}` : "";
 
@@ -91,6 +93,7 @@ const TopTracks = (props: Props) => {
       </CardHeader>
       <div className="mt-7">
         <TopItemList
+          rankBy={props.rankBy}
           ranked
           type="track"
           data={data}

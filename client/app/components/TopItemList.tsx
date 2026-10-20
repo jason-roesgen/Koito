@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { rankingLabel } from "~/utils/ranking";
+import { Link, useLocation } from "react-router";
 import ArtistLinks from "./ArtistLinks";
 import MediaItem, { MediaItemSkeleton } from "./primitives/MediaItem";
 import {
@@ -12,6 +13,7 @@ import {
 type Item = Album | Track | Artist;
 
 interface Props<T extends Ranked<Item>> {
+  rankBy?: "plays" | "time";
   data: PaginatedResponse<T>;
   slug: string;
   startIndex?: number;
@@ -30,7 +32,10 @@ export default function TopItemList<T extends Ranked<Item>>({
   className,
   ranked,
   showSeeMore,
+  rankBy,
 }: Props<T>) {
+  const location = useLocation();
+  const metric = rankBy ?? (new URLSearchParams(location.search).get("rank_by") === "time" ? "time" : "plays");
   if (startIndex) data.items.splice(0, startIndex - 1);
   return (
     <div className={`flex flex-col gap-1 ${className} min-w-[200px]`}>
@@ -41,6 +46,7 @@ export default function TopItemList<T extends Ranked<Item>>({
           className="mb-0.5"
         >
           <ItemCard
+            rankBy={metric}
             ranked={ranked}
             rank={item.rank}
             item={item.item}
@@ -66,11 +72,13 @@ export default function TopItemList<T extends Ranked<Item>>({
 }
 
 function ItemCard({
+  rankBy,
   item,
   type,
   rank,
   ranked,
 }: {
+  rankBy: "plays" | "time";
   item: Item;
   type: "album" | "track" | "artist";
   rank: number;
@@ -115,9 +123,9 @@ function ItemCard({
               lazy
             />
           </td>
-          <td className="w-[75px]">
+          <td className={rankBy === "time" ? "w-[120px] sm:w-[190px]" : "w-[75px]"}>
             <div className="color-fg-secondary text-end">
-              {typedItem.listen_count} plays
+              {rankingLabel(typedItem, rankBy)}
             </div>
           </td>
         </tr>
