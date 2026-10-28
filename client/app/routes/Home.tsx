@@ -1,3 +1,4 @@
+import ListeningByHour from "~/components/ListeningByHour";
 import type { Route } from "./+types/Home";
 import TopTracks from "~/components/TopTracks";
 import LastPlayed from "~/components/LastPlayed";
@@ -38,7 +39,8 @@ export default function Home() {
                 {visible.activity && <ActivityGrid configurable />}
               </div>
             )}
-            {showRankings && <PeriodSelector setter={setPeriod} current={period} />}
+            {(showRankings || visible.hourly) && <PeriodSelector setter={setPeriod} current={period} />}
+            {visible.hourly && <ListeningByHour period={period} metric={rankBy} />}
             {(showRankings || visible.recent) && (
               <div className="container justify-center flex flex-wrap gap-10">
                 {visible.artists && <TopArtistsCard rankBy={rankBy} period={period} />}

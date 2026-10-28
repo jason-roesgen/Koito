@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 export const sections = {
   stats: "All time stats",
   activity: "Activity",
+  hourly: "Listening by hour",
   artists: "Top artists",
   albums: "Top albums",
   tracks: "Top tracks",
@@ -12,7 +13,7 @@ type Section = keyof typeof sections;
 type Visibility = Record<Section, boolean>;
 export const sectionKeys = Object.keys(sections) as Section[];
 export const defaults: Visibility = {
-  stats: true, activity: true, artists: true,
+  stats: true, activity: true, hourly: true, artists: true,
   albums: true, tracks: true, recent: true,
 };
 const storageKey = "koito.dashboard.visibility.v1";
