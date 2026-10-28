@@ -102,6 +102,26 @@ export function demoDataPlugin(): Plugin {
         if (path === "listens") return send(page(rows, p));
         if (path === "stats") return send(stats(rows));
         if (path.startsWith("top/")) return send(page(ranked(path.slice(4), rows, p.get("rank_by") === "time"), p));
+        if (path === "listening-by-hour") {
+          if (!["day", "week", "month", "year", "all_time"].includes(p.get("period") ?? "")) {
+            return send({ error: "period must be day, week, month, year, or all_time" }, 400);
+          }
+          let timezone = p.get("tz") || "UTC";
+          let formatter: Intl.DateTimeFormat;
+          try {
+            formatter = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", hourCycle: "h23" });
+          } catch {
+            timezone = "UTC";
+            formatter = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", hourCycle: "h23" });
+          }
+          const hours = Array.from({ length: 24 }, (_, hour) => ({ hour, plays: 0, seconds: 0 }));
+          for (const listen of rows) {
+            const hour = Number(formatter.format(new Date(listen.time)));
+            hours[hour].plays++;
+            hours[hour].seconds += duration(listen.track);
+          }
+          return send({ timezone, hours });
+        }
         if (path === "listen-activity") {
           const counts = new Map<string, number>();
           rows.forEach(l => counts.set(dateKey(l.time), (counts.get(dateKey(l.time)) ?? 0) + 1));
