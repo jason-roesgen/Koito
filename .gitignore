@@ -1,2 +1,16 @@
 test_config_dir
 .env
+.env.*
+!.env.example
+.envrc
+.direnv/
+
+# Local credentials and generated SQLite databases, journals and backups
+.aws/
+.ssh/
+*.pem
+*.key
+*.p12
+*.pfx
+*.db*
+*.sqlite*

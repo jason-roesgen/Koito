@@ -1,0 +1,52 @@
+# Git metadata and local credentials/tool settings
+**/.git
+**/.aws
+**/.ssh
+**/.codex
+**/.agents
+**/.vscode
+**/.idea
+**/.DS_Store
+
+# Environment files and private keys; retain the documented example
+**/.env
+**/.env.*
+!**/.env.example
+**/.envrc
+**/.direnv
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+
+# Local databases, their journals, and backups (keep SQL migration assets)
+**/*.db*
+**/*.sqlite*
+test_config_dir
+
+# Dependency caches and generated frontend/build output
+**/node_modules
+**/.react-router
+**/.yarn/cache
+**/.yarn/unplugged
+**/.yarn/install-state.gz
+**/.pnp.*
+**/.cache
+**/.npm
+**/.pnpm-store
+**/build
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/*.log
+bin
+app
+api
+koito
+**/*.test
+**/coverage.out
+
+# Documentation, fixtures and local verification output are not image inputs
+docs
+test_assets
+release-readiness-*.md
