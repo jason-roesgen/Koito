@@ -1,3 +1,4 @@
+import ListeningMilestones from "~/components/ListeningMilestones";
 import ListeningByHour from "~/components/ListeningByHour";
 import type { Route } from "./+types/Home";
 import TopTracks from "~/components/TopTracks";
@@ -39,6 +40,7 @@ export default function Home() {
                 {visible.activity && <ActivityGrid configurable />}
               </div>
             )}
+            {visible.milestones && <ListeningMilestones />}
             {(showRankings || visible.hourly) && <PeriodSelector setter={setPeriod} current={period} />}
             {visible.hourly && <ListeningByHour period={period} metric={rankBy} />}
             {(showRankings || visible.recent) && (

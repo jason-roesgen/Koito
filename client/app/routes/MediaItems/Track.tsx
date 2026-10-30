@@ -1,3 +1,4 @@
+import CertificationBoard from "~/components/CertificationBoard";
 import { Link, useLoaderData, type LoaderFunctionArgs } from "react-router";
 import { mergeTracks, type Album, type Artist, type Track } from "api/api";
 import LastPlayed from "~/components/LastPlayed";
@@ -77,6 +78,7 @@ export default function Track() {
       }
     >
       <div className="flex flex-col gap-10 md:gap-20 mt-14">
+        <CertificationBoard type="track" id={track.id} />
         <div className="min-w-[350px] flex-1">
           <LastPlayed limit={11} trackId={track.id} showNowPlaying />
         </div>

@@ -1,3 +1,4 @@
+import CertificationBoard from "~/components/CertificationBoard";
 import { useAppContext } from "~/providers/AppProvider";
 import { useLoaderData, type LoaderFunctionArgs } from "react-router";
 import TopTracks from "~/components/TopTracks";
@@ -55,6 +56,7 @@ export default function Artist() {
       subContent={<></>}
     >
       <div className="flex flex-col gap-14">
+        <CertificationBoard type="artist" id={artist.id} />
         <div className="flex flex-col gap-10 md:gap-12 mt-8 max-w-[1400px]">
           <div className="flex gap-10 md:gap-20 flex-wrap xl:flex-nowrap items-start">
             <TopTracks

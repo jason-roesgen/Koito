@@ -1,5 +1,7 @@
 import type { Plugin } from "vite";
 import type { Album, Artist, Track, ImageList } from "./api/api";
+import type { Certification, TrackCertifications, MilestoneHistory } from "./api/certifications";
+import { minuteMilestones, playMilestones } from "./app/utils/milestones";
 
 // In-memory fixtures used only by the explicitly enabled Vite development server.
 export function demoDataPlugin(): Plugin {
@@ -17,7 +19,7 @@ export function demoDataPlugin(): Plugin {
   const albums: Album[] = titles.map((title, i) => ({ ...base, id: i + 1, title, image: artwork(i), artists: [{ id: i + 1, name: names[i] }], is_various_artists: false }));
   const tracks: Track[] = albums.flatMap((album, i) => ["First Light", "Side Streets", "Drift", "Open Water", "Homeward", "Last Train"].map((name, j) => ({ ...base, id: i * 6 + j + 1, title: `${name} (${album.title})`, image: album.image, artists: album.artists, album_id: album.id })));
   const duration = (track: Track) => 150 + (track.id * 37) % 210;
-  const history: { time: string; track: Track }[] = [];
+  let history: { time: string; track: Track }[] = [];
   for (let d = 450; d >= 0; d--) {
     if (d > 7 && d % 13 === 0) continue;
     const date = new Date(now);
@@ -30,7 +32,17 @@ export function demoDataPlugin(): Plugin {
       history.push({ time: at.toISOString(), track: tracks[(d * 7 + j * j + j) % tracks.length] });
     }
   }
-  history.sort((a, b) => b.time.localeCompare(a.time));
+  // Certification examples: below Gold, Gold, Platinum, multi-Gold/Platinum,
+  // Diamond, and the transition from Diamond to 3× Platinum.
+  const showcase = [199, 200, 400, 600, 800, 1000, 1200, 2000];
+  history = history.filter(listen => listen.track.id > showcase.length);
+  showcase.forEach((plays, index) => {
+    for (let play = 0; play < plays; play++) {
+      const time = new Date(now.getTime() - 400 * day + Math.floor(play * 399 * day / plays));
+      history.push({ time: time.toISOString(), track: tracks[index] });
+    }
+  });
+  history.sort((a, b) => b.time.localeCompare(a.time) || a.track.id - b.track.id);
   type Listen = typeof history[number];
   const matches = (l: Listen, p: URLSearchParams) =>
     (!Number(p.get("artist_id")) || l.track.artists[0].id === Number(p.get("artist_id"))) &&
@@ -84,6 +96,28 @@ export function demoDataPlugin(): Plugin {
     const a = ranked("artists", rows).length, b = ranked("albums", rows).length, t = ranked("tracks", rows).length;
     return { listen_count: rows.length, track_count: t, album_count: b, artist_count: a, minutes_listened: Math.floor(rows.reduce((sum, l) => sum + duration(l.track), 0) / 60), days_active: dates.size, avg_daily_plays: rows.length / (dates.size || 1), tracks_per_artist: t / (a || 1), albums_per_artist: b / (a || 1), longest_streak: longest };
   }
+  function awardAt(plays: number, time = ""): Certification {
+    const threshold = Math.floor(plays / 200) * 200;
+    const tier = threshold % 1000 === 0 ? "diamond" : threshold % 400 === 0 ? "platinum" : "gold";
+    return { tier, multiple: threshold / (tier === "diamond" ? 1000 : tier === "platinum" ? 400 : 200), plays: threshold, reached_at: time };
+  }
+  function trackCertifications(track: Track): TrackCertifications {
+    const listens = history.filter(listen => listen.track.id === track.id).sort((a, b) => a.time.localeCompare(b.time));
+    const awards = listens.flatMap((listen, index) => (index + 1) % 200 === 0 ? [awardAt(index + 1, listen.time)] : []);
+    return { track_id: track.id, title: track.title, plays: listens.length, current: awards.at(-1) ?? null, next: awardAt((Math.floor(listens.length / 200) + 1) * 200), history: awards };
+  }
+  function milestoneHistory(): MilestoneHistory {
+    const plays = playMilestones.map(target => ({ target, reached_at: null as string | null }));
+    const minutes = minuteMilestones.map(target => ({ target, reached_at: null as string | null }));
+    let count = 0, seconds = 0, playIndex = 0, minuteIndex = 0;
+    for (const listen of [...history].sort((a, b) => a.time.localeCompare(b.time) || a.track.id - b.track.id)) {
+      count++;
+      seconds += duration(listen.track);
+      while (playIndex < plays.length && count >= plays[playIndex].target) plays[playIndex++].reached_at = listen.time;
+      while (minuteIndex < minutes.length && seconds >= minutes[minuteIndex].target * 60) minutes[minuteIndex++].reached_at = listen.time;
+    }
+    return { plays: count, minutes: Math.floor(seconds / 60), play_milestones: plays, minute_milestones: minutes };
+  }
   return {
     name: "koito-synthetic-history", apply: "serve",
     configureServer(server) {
@@ -94,6 +128,21 @@ export function demoDataPlugin(): Plugin {
         if (req.method !== "GET") return send({ error: "Synthetic demo is read-only. Disable demo mode to edit local data." }, 403);
         const path = url.pathname.slice("/apis/web/v1/".length), p = url.searchParams;
         const rows = select(p);
+        if (path === "milestones") return send(milestoneHistory());
+        const certification = path.match(/^(track|artist)\/([^/]+)\/certifications$/);
+        if (certification) {
+          const id = Number(certification[2]);
+          if (!Number.isInteger(id) || id <= 0 || id > 2147483647) return send({ error: "invalid ID" }, 400);
+          if (certification[1] === "track") {
+            const track = tracks.find(track => track.id === id);
+            return track ? send(trackCertifications(track)) : send({ error: "item not found" }, 404);
+          }
+          if (!artists.some(artist => artist.id === id)) return send({ error: "item not found" }, 404);
+          const certified = tracks.filter(track => track.artists.some(artist => artist.id === id)).map(trackCertifications).filter(track => track.current !== null);
+          const counts = { gold: 0, platinum: 0, diamond: 0 };
+          certified.forEach(track => { if (track.current) counts[track.current.tier]++; });
+          return send({ counts, tracks: certified });
+        }
         if (path === "health") return send({ demo: true });
         if (path === "config") return send({ default_theme: "yuu" });
         if (path === "user") return send({ error: "Read-only demo" }, 401);
