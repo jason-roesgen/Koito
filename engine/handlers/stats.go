@@ -1,13 +1,11 @@
 package handlers
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/gabehf/koito/internal/db"
 	"github.com/gabehf/koito/internal/logger"
-	"github.com/gabehf/koito/internal/memkv"
 	"github.com/gabehf/koito/internal/utils"
 )
 
@@ -41,18 +39,8 @@ func StatsHandler(store statsStore) http.HandlerFunc {
 
 		l.Debug().Msg("StatsHandler: Fetching statistics")
 
-		cacheKeyString := fmt.Sprintf("stats_%s_%s", r.URL.Query().Encode(), tf.Timezone.String())
-
-		if cachedStatsI, ok := memkv.Store.Get(cacheKeyString); ok {
-			if cachedStats, ok := cachedStatsI.(*StatsResponse); ok {
-				l.Debug().Msg("StatsHandler: got stats from cache")
-				utils.WriteJSON(w, http.StatusOK, cachedStats)
-				return
-			}
-		}
-
-		l.Debug().Msg("StatsHandler: cache missed for stats")
-
+		// Read current aggregates on every request. Listen counts alone cannot
+		// detect replacements, duration edits, or catalog merges.
 		listens, err := store.CountListens(r.Context(), tf)
 		if err != nil {
 			l.Err(err).Msg("StatsHandler: Failed to fetch listen count")
@@ -111,15 +99,25 @@ func StatsHandler(store statsStore) http.HandlerFunc {
 			ArtistCount:     artists,
 			MinutesListened: timeListenedS / 60,
 			DaysActive:      activeDays,
-			AvgDailyPlays:   float32(listens) / float32(activeDays),
-			TracksPerArtist: float32(tracks) / float32(artists),
-			AlbumsPerArtist: float32(albums) / float32(artists),
 			LongestStreak:   longestStreak,
 		}
 
-		utils.WriteJSON(w, http.StatusOK, resp)
+		// Averages with no denominator are defined as zero, not NaN/Infinity.
+		if activeDays > 0 {
+			resp.AvgDailyPlays = float32(listens) / float32(activeDays)
+		}
+		if artists > 0 {
+			resp.TracksPerArtist = float32(tracks) / float32(artists)
+			resp.AlbumsPerArtist = float32(albums) / float32(artists)
+		}
 
-		// save to cache for 30 minutes
-		memkv.Store.Set(cacheKeyString, resp, 30*time.Minute)
+		// Keep this validation local to stats: shared WriteJSON currently ignores
+		// encoder errors. Never send HTTP 200 for an unserializable result.
+		if _, err := json.Marshal(resp); err != nil {
+			l.Err(err).Msg("StatsHandler: Failed to encode statistics")
+			utils.WriteError(w, "failed to encode statistics", http.StatusInternalServerError)
+			return
+		}
+		utils.WriteJSON(w, http.StatusOK, resp)
 	}
 }
