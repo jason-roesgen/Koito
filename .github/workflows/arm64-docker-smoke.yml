@@ -1,0 +1,84 @@
+name: Native ARM64 Docker smoke
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.repository == 'jason-roesgen/Koito'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    env:
+      SMOKE_IMAGE: koito-ci:arm64-${{ github.run_id }}-${{ github.run_attempt }}
+      DOCKER_HOST: unix:///var/run/docker.sock
+      DOCKER_CONTEXT: ""
+    steps:
+      - name: Prepare temporary diagnostics directory
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_dir="$RUNNER_TEMP/koito-arm64-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$smoke_dir/evidence" "$smoke_dir/docker-config"
+          echo "SMOKE_DIR=$smoke_dir" >> "$GITHUB_ENV"
+          echo "DOCKER_CONFIG=$smoke_dir/docker-config" >> "$GITHUB_ENV"
+
+      - name: Check out source
+        id: checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Verify native runner and Docker support
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$SMOKE_DIR/evidence" "$DOCKER_CONFIG"
+          {
+            uname -a
+            df -h .
+            case "$(uname -m)" in
+              aarch64|arm64) ;;
+              *) echo '::error::Native ARM64 runner required; emulation is not configured by this job.'; exit 1 ;;
+            esac
+            docker version
+            docker buildx version
+            daemon_platform="$(docker info --format '{{.OSType}}/{{.Architecture}}')"
+            case "$daemon_platform" in
+              linux/aarch64|linux/arm64) ;;
+              *) echo "::error::Expected native ARM64 Docker daemon, got $daemon_platform"; exit 1 ;;
+            esac
+            docker buildx inspect default
+          } 2>&1 | tee "$SMOKE_DIR/evidence/preflight.log"
+
+      - name: Build and load ARM64 image locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --builder default \
+            --platform linux/arm64 \
+            --load \
+            --progress=plain \
+            --build-arg "KOITO_VERSION=ci-arm64-${GITHUB_SHA:0:12}" \
+            --tag "$SMOKE_IMAGE" . 2>&1 | tee "$SMOKE_DIR/evidence/build.log"
+
+      - name: Smoke test isolated container
+        run: python3 .github/scripts/docker_smoke.py --image "$SMOKE_IMAGE" --work-dir "$SMOKE_DIR" --architecture arm64
+
+      - name: Clean up only this smoke test
+        if: always() && steps.checkout.outcome == 'success'
+        run: python3 .github/scripts/docker_smoke.py --work-dir "$SMOKE_DIR" --cleanup
+
+      - name: Upload diagnostic evidence
+        if: always() && steps.prepare.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: koito-arm64-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.SMOKE_DIR }}/evidence/
+          if-no-files-found: warn
+          retention-days: 7
