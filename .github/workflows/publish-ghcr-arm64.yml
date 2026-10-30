@@ -1,0 +1,154 @@
+name: Publish ARM64 release to GHCR (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: koito-ghcr-jr-v0.1.0
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'jason-roesgen/Koito' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    env:
+      RELEASE_IMAGE: ghcr.io/jason-roesgen/koito:jr-v0.1.0
+      DOCKER_HOST: unix:///var/run/docker.sock
+      DOCKER_CONTEXT: ""
+    steps:
+      - name: Prepare isolated diagnostics and Docker credentials
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          smoke_dir="$RUNNER_TEMP/koito-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$smoke_dir/evidence" "$smoke_dir/docker-config"
+          echo "SMOKE_DIR=$smoke_dir" >> "$GITHUB_ENV"
+          echo "DOCKER_CONFIG=$smoke_dir/docker-config" >> "$GITHUB_ENV"
+
+      - name: Check out the selected source commit
+        id: checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify native ARM64 runner and Docker support
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+            printf '%s\n' "$GITHUB_SHA" > "$SMOKE_DIR/evidence/source-commit.txt"
+            uname -a
+            df -h .
+            case "$(uname -m)" in
+              aarch64|arm64) ;;
+              *) echo '::error::Native ARM64 runner required.'; exit 1 ;;
+            esac
+            docker version
+            docker buildx version
+            case "$(docker info --format '{{.OSType}}/{{.Architecture}}')" in
+              linux/aarch64|linux/arm64) ;;
+              *) echo '::error::Native ARM64 Docker daemon required.'; exit 1 ;;
+            esac
+            docker buildx inspect default
+          } 2>&1 | tee "$SMOKE_DIR/evidence/preflight.log"
+
+      - name: Build and load the release image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --builder default \
+            --platform linux/arm64 \
+            --load \
+            --progress=plain \
+            --build-arg KOITO_VERSION=jr-v0.1.0 \
+            --label org.opencontainers.image.source=https://github.com/jason-roesgen/Koito \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label org.opencontainers.image.version=jr-v0.1.0 \
+            --tag "$RELEASE_IMAGE" . 2>&1 | tee "$SMOKE_DIR/evidence/build.log"
+          image_id="$(docker image inspect --format '{{.Id}}' "$RELEASE_IMAGE")"
+          echo "TESTED_IMAGE_ID=$image_id" >> "$GITHUB_ENV"
+
+      - name: Smoke test the exact release image before publishing
+        run: python3 .github/scripts/docker_smoke.py --image "$TESTED_IMAGE_ID" --work-dir "$SMOKE_DIR" --architecture arm64
+
+      - name: Clean up only this smoke test
+        if: always() && steps.checkout.outcome == 'success'
+        run: python3 .github/scripts/docker_smoke.py --work-dir "$SMOKE_DIR" --cleanup
+
+      - name: Authenticate to GHCR after successful smoke testing
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish the tested image and record its digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect --format '{{.Id}}' "$RELEASE_IMAGE")" = "$TESTED_IMAGE_ID"
+          docker push "$RELEASE_IMAGE" 2>&1 | tee "$SMOKE_DIR/evidence/push.log"
+          docker image inspect --format '{{json .RepoDigests}}' "$RELEASE_IMAGE" > "$SMOKE_DIR/evidence/repo-digests.json"
+          docker buildx imagetools inspect "$RELEASE_IMAGE" --format '{{json .Manifest}}' > "$SMOKE_DIR/evidence/registry-manifest.json"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+
+          evidence = Path(os.environ["SMOKE_DIR"]) / "evidence"
+          image = os.environ["RELEASE_IMAGE"]
+          repository = image.rsplit(":", 1)[0]
+          manifest = json.loads((evidence / "registry-manifest.json").read_text())
+          digest = manifest["digest"]
+          if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+              raise SystemExit("Invalid registry image digest")
+          reference = repository + "@" + digest
+          if reference not in json.loads((evidence / "repo-digests.json").read_text()):
+              raise SystemExit("Registry digest does not match the locally pushed image")
+          record = {
+              "image": image,
+              "digest": digest,
+              "deployment_reference": reference,
+              "source_commit": os.environ["GITHUB_SHA"],
+              "tested_image_id": os.environ["TESTED_IMAGE_ID"],
+              "platform": "linux/arm64",
+              "workflow_run": f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+          }
+          (evidence / "release.json").write_text(json.dumps(record, indent=2) + "\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"Published `{image}` after ARM64 smoke testing.\n\n")
+              summary.write(f"Source commit: `{record['source_commit']}`\n\n")
+              summary.write(f"Deploy by digest: `{reference}`\n")
+          print(json.dumps(record, indent=2))
+          PY
+
+      - name: Remove temporary GHCR credentials
+        if: always() && steps.prepare.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'rm -f "$DOCKER_CONFIG/config.json"' EXIT
+          docker logout ghcr.io
+
+      - name: Upload release record and diagnostic evidence
+        if: always() && steps.prepare.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: koito-jr-v0.1.0-arm64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.SMOKE_DIR }}/evidence/
+          if-no-files-found: warn
+          retention-days: 90
