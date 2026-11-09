@@ -33,6 +33,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Test release packaging
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s .github/scripts -p test_release_packaging.py -v
+
       - name: Verify native runner and Docker support
         shell: bash
         run: |
