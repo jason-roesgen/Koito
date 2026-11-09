@@ -181,6 +181,8 @@ def smoke(image, architecture, work):
         linked = docker("exec", state["container"], "ldd", "/app/app", check=False)
         (evidence / "ldd.log").write_text(linked.stdout + linked.stderr)
         check("CGO and libvips linkage", linked.returncode == 0 and "not found" not in linked.stdout + linked.stderr and "libvips.so" in linked.stdout)
+        license_text = docker("exec", state["container"], "cat", "/app/LICENSE").stdout
+        check("original MIT license packaged", license_text == (Path(__file__).resolve().parents[2] / "LICENSE").read_text())
         code, hdr, html = request("web", "/")
         check("web HTML", code == 200 and hdr.get_content_type() == "text/html" and b"<html" in html.lower())
         assets = re.findall(r'''(?:src|href)=["']([^"']+\.js(?:\?[^"']*)?)["']''', html.decode())

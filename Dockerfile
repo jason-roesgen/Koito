@@ -47,6 +47,7 @@ COPY --from=frontend /client/build ./client/build
 COPY ./client/public ./client/public
 COPY ./assets ./assets
 COPY ./db ./db
+COPY ./LICENSE ./LICENSE
 
 EXPOSE 4110
 
