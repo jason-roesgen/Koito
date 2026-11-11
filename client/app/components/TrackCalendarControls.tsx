@@ -31,7 +31,7 @@ export default function TrackCalendarControls() {
 
   return (
     <div className="flex flex-col gap-3 items-start">
-      <div className="max-w-full overflow-x-auto">
+      <div className="top-tracks-periods max-w-full overflow-x-auto">
         <PeriodSelector current={period} setter={(value: TrackPeriod) => select(now, value)} disableCache />
       </div>
       {period !== "all_time" && (
