@@ -216,6 +216,9 @@ button.large-button[disabled]:hover {
 button.period-selector {
   color: var(--color-fg-secondary);
 }
+.top-chart-periods button.period-selector:not(:disabled):not(:hover) {
+  color: var(--color-fg-tertiary);
+}
 button.period-selector:disabled,
 button.period-selector[disabled]:hover {
   color: var(--color-fg);

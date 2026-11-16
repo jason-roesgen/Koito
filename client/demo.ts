@@ -67,7 +67,8 @@ export function demoDataPlugin(): Plugin {
       end = last.getTime();
     }
     if (Number(p.get("from"))) start = Number(p.get("from")) * 1000;
-    if (Number(p.get("to"))) end = Number(p.get("to")) * 1000;
+    // The API uses inclusive integer-second endpoints; select() uses an exclusive end.
+    if (Number(p.get("to"))) end = (Number(p.get("to")) + 1) * 1000;
     return history.filter(l => matches(l, p) && Date.parse(l.time) >= start && Date.parse(l.time) < end);
   }
   const entityId = (l: Listen, kind: string) => kind === "artists" ? l.track.artists[0].id : kind === "albums" ? l.track.album_id : l.track.id;

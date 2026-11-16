@@ -1,3 +1,4 @@
+import { fetchRankingPeriod, rankingLinkParams } from "~/utils/chartCalendar";
 import { rankingLabel } from "~/utils/ranking";
 import {
   apiFetch,
@@ -17,16 +18,19 @@ interface Props {
 }
 
 const getTopArtists = (args: { limit: number; period: string; page: number }) =>
-  apiFetch<PaginatedResponse<Ranked<Artist>>>("/apis/web/v1/top/artists", args);
+  fetchRankingPeriod(args.period, timeframe =>
+    apiFetch<PaginatedResponse<Ranked<Artist>>>("/apis/web/v1/top/artists", { ...args, ...timeframe }));
 
 export default function TopArtistsCard({ period, rankBy = "plays" }: Props) {
   const numItems = 5;
 
-  const args = { limit: numItems, period: period, page: 0, rank_by: rankBy };
+  const args = { limit: numItems, period, page: 0, rank_by: rankBy };
   const { isPending, isError, data, error } = useQuery({
     queryKey: ["top/artists", args],
     queryFn: () => getTopArtists(args),
   });
+
+  const chartLink = `/chart/top/artists?${rankingLinkParams({ ...args, ...data?.timeframe })}`;
 
   const header = "Top artists";
 
@@ -35,7 +39,7 @@ export default function TopArtistsCard({ period, rankBy = "plays" }: Props) {
   } else if (isError) {
     return (
       <div className="w-[300px]">
-        <CardHeader to={`/chart/top/artists?period=${period}&rank_by=${rankBy}`} isOffset>
+        <CardHeader to={chartLink} isOffset>
           {header}
         </CardHeader>
         <p className="error">Error: {error.message}</p>
@@ -46,7 +50,7 @@ export default function TopArtistsCard({ period, rankBy = "plays" }: Props) {
   if (!data.items[0]) {
     return (
       <div className="w-[348px]">
-        <CardHeader to={`/chart/top/artists?period=${period}&rank_by=${rankBy}`} isOffset>
+        <CardHeader to={chartLink} isOffset>
           {header}
         </CardHeader>
         <p className="ml-6 mt-6">Nothing to show</p>
@@ -56,7 +60,7 @@ export default function TopArtistsCard({ period, rankBy = "plays" }: Props) {
 
   return (
     <div>
-      <CardHeader to={`/chart/top/artists?period=${period}&rank_by=${rankBy}`} isOffset>
+      <CardHeader to={chartLink} isOffset>
         {header}
       </CardHeader>
       <div className="max-w-[350px] card">

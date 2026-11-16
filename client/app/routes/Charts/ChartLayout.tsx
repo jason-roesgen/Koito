@@ -9,6 +9,8 @@ interface ChartLayoutProps<T> {
   title: "Top Albums" | "Top Tracks" | "Top Artists" | "Last Played";
   initialData: PaginatedResponse<T>;
   endpoint: string;
+  // Custom controls use route-loader data; existing charts keep their fetcher behavior.
+  controls?: React.ReactNode;
   render: (opts: {
     data: PaginatedResponse<T>;
     page: number;
@@ -21,6 +23,7 @@ export default function ChartLayout<T>({
   title,
   initialData,
   endpoint,
+  controls,
   render,
 }: ChartLayoutProps<T>) {
   const pgTitle = `${title} - Koito`;
@@ -32,9 +35,10 @@ export default function ChartLayout<T>({
   const { firstActivity } = useAppContext();
 
   const currentParams = new URLSearchParams(location.search);
-  const currentPage = parseInt(currentParams.get("page") || "1", 10);
+  const currentPage = controls !== undefined ? initialData.current_page
+    : parseInt(currentParams.get("page") || "1", 10);
 
-  const data: PaginatedResponse<T> = fetcher.data?.[endpoint]
+  const data: PaginatedResponse<T> = controls === undefined && fetcher.data?.[endpoint]
     ? fetcher.data[endpoint]
     : initialData;
 
@@ -117,14 +121,14 @@ export default function ChartLayout<T>({
   };
 
   useEffect(() => {
-    fetcher.load(`/${endpoint}?${currentParams.toString()}`);
+    if (controls === undefined) fetcher.load(`/${endpoint}?${currentParams.toString()}`);
   }, [location.search]);
 
   const setPage = (nextPage: number) => {
     const nextParams = new URLSearchParams(location.search);
     nextParams.set("page", String(nextPage));
     const url = `/${endpoint}?${nextParams.toString()}`;
-    fetcher.load(url);
+    if (controls === undefined) fetcher.load(url);
     navigate(url, { replace: false });
   };
 
@@ -220,6 +224,7 @@ export default function ChartLayout<T>({
       <meta name="description" content={pgTitle} />
       <div className="w-(100%-3) sm:w-17/20 mx-auto ml-3 sm:ml-18 mt-6 sm:mt-12">
         <h1>{title}</h1>
+        {controls ?? <>
         <div className="flex flex-col items-start lg:flex-row sm:items-start gap-2 sm:gap-4">
           <PeriodSelector
             current={period}
@@ -266,6 +271,7 @@ export default function ChartLayout<T>({
           </div>
         </div>
         <p className="mt-2 text-sm text-color-fg-secondary">{getDateRange()}</p>
+        </>}
         <div className="mt-10 sm:mt-20 flex mx-auto justify-between">
           {render({
             data,

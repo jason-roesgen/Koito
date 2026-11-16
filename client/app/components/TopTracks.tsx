@@ -1,3 +1,4 @@
+import { fetchRankingPeriod, rankingLinkParams } from "~/utils/chartCalendar";
 import { useQuery } from "@tanstack/react-query";
 import {
   apiFetch,
@@ -26,7 +27,8 @@ const getTopTracks = (args: {
   album_id?: number;
   page: number;
 }) =>
-  apiFetch<PaginatedResponse<Ranked<Track>>>("/apis/web/v1/top/tracks", args);
+  fetchRankingPeriod(args.period, timeframe =>
+    apiFetch<PaginatedResponse<Ranked<Track>>>("/apis/web/v1/top/tracks", { ...args, ...timeframe }));
 
 const TopTracks = (props: Props) => {
   const args = {
@@ -63,18 +65,17 @@ const TopTracks = (props: Props) => {
   }
   if (!data.items) return;
 
-  let params = `&rank_by=${props.rankBy ?? "plays"}`;
-  params += props.artistId ? `&artist_id=${props.artistId}` : "";
-  params += props.albumId ? `&album_id=${props.albumId}` : "";
-
-  const slug = `/chart/top/tracks?period=${props.period}&limit=100${params}`;
+  const params = rankingLinkParams({ ...args, ...data.timeframe });
+  const chartLink = `/chart/top/tracks?${params}`;
+  params.set("limit", "100");
+  const slug = `/chart/top/tracks?${params}`;
 
   if (!data.items[0]) {
     return (
       <div className={props.className}>
         <CardHeader
           isOffset
-          to={`/chart/top/tracks?period=${props.period}${params}`}
+          to={chartLink}
         >
           {header}
         </CardHeader>
@@ -87,7 +88,7 @@ const TopTracks = (props: Props) => {
     <div className={props.className}>
       <CardHeader
         isOffset
-        to={`/chart/top/tracks?period=${props.period}${params}`}
+        to={chartLink}
       >
         {header}
       </CardHeader>

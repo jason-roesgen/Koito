@@ -1,0 +1,108 @@
+import { useLocation, useNavigate } from "react-router";
+import PeriodSelector from "./PeriodSelector";
+import { useAppContext } from "~/providers/AppProvider";
+import {
+  isoWeek, isoWeekStart, localDateValue, moveChartPeriod, readChartCalendar,
+  chartCalendarParams, chartCalendarRange, type ChartPeriod,
+} from "~/utils/chartCalendar";
+
+export default function ChartCalendarControls() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { firstActivity } = useAppContext();
+  const params = new URLSearchParams(location.search);
+  const now = new Date();
+  const calendar = readChartCalendar(params, now);
+  const { period, date, range } = calendar;
+  const { start, end } = chartCalendarRange(calendar);
+  const selectedWeek = isoWeek(date);
+  const year = period === "week" ? selectedWeek.year : date.getFullYear();
+  const currentYear = period === "week" ? isoWeek(now).year : now.getFullYear();
+  const firstYear = firstActivity
+    ? period === "week" ? isoWeek(firstActivity).year : firstActivity.getFullYear()
+    : currentYear - 10;
+  const earliestYear = Math.min(firstYear, year);
+  const years = Array.from({ length: currentYear - earliestYear + 1 }, (_, i) => currentYear - i);
+  const formatter = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "long", day: "numeric" });
+  const lastDay = new Date(end.getTime() - 1000);
+  const selectClass = "px-2 py-1 rounded border border-gray-400";
+
+  const select = (nextDate: Date, nextPeriod: ChartPeriod = period) => {
+    const next = chartCalendarParams(params, { period: nextPeriod, date: nextDate });
+    navigate(`${location.pathname}?${next}`);
+  };
+
+  return (
+    <div className="flex flex-col gap-3 items-start">
+      <div className="top-chart-periods max-w-full overflow-x-auto">
+        <PeriodSelector current={range ? "" : period} setter={(value: ChartPeriod) => select(date, value)} disableCache />
+      </div>
+      {!range && period !== "all_time" && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button className="default" onClick={() => select(moveChartPeriod(calendar, -1))}>
+            Previous {period}
+          </button>
+          {period === "day" ? (
+            <label className="flex items-center gap-2">
+              Date
+              <input type="date" className={selectClass} value={localDateValue(date)} max={localDateValue(now)}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    const next = readChartCalendar(new URLSearchParams({ period: "day", date: event.target.value }), now);
+                    select(next.date);
+                  }
+                }} />
+            </label>
+          ) : (
+            <>
+              <label className="flex items-center gap-2">
+                {period === "week" ? "ISO year" : "Year"}
+                <select aria-label={period === "week" ? "ISO year" : "Year"} className={selectClass} value={year} onChange={(event) => {
+                  const nextYear = Number(event.target.value);
+                  select(period === "week"
+                    ? isoWeekStart(nextYear, Math.min(selectedWeek.week, isoWeek(new Date(nextYear, 11, 28)).week))
+                    : new Date(nextYear, date.getMonth(), 1));
+                }}>
+                  {years.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              {period === "month" && (
+                <label className="flex items-center gap-2">
+                  Month
+                  <select aria-label="Month" className={selectClass} value={date.getMonth()} onChange={(event) => select(new Date(year, Number(event.target.value), 1))}>
+                    {Array.from({ length: 12 }, (_, month) => (
+                      <option key={month} value={month} disabled={new Date(year, month, 1) > now}>
+                        {new Intl.DateTimeFormat(undefined, { month: "long" }).format(new Date(year, month, 1))}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {period === "week" && (
+                <label className="flex items-center gap-2">
+                  Week
+                  <select aria-label="Week" className={selectClass} value={selectedWeek.week} onChange={(event) => select(isoWeekStart(year, Number(event.target.value)))}>
+                    {Array.from({ length: isoWeek(new Date(year, 11, 28)).week }, (_, i) => i + 1).map((week) => (
+                      <option key={week} value={week} disabled={isoWeekStart(year, week) > now}>{week}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </>
+          )}
+          <button className="default" disabled={start >= chartCalendarRange({ period, date: now }).start}
+            onClick={() => select(moveChartPeriod(calendar, 1))}>
+            Next {period}
+          </button>
+        </div>
+      )}
+      <p className="text-sm text-color-fg-secondary">
+        {range ? `Selected range: ${start.toLocaleString()} – ${lastDay.toLocaleString()}`
+          : period === "all_time" ? "All Time" : period === "day" ? formatter.format(start)
+          : `${formatter.format(start)} – ${formatter.format(lastDay)}`}
+        {(range || period !== "all_time") && " · Your local timezone"}
+      </p>
+      {range && <p className="text-sm text-color-fg-secondary">Choose a period above to browse calendar dates.</p>}
+    </div>
+  );
+}
