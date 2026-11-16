@@ -13,12 +13,15 @@ export default function ChartCalendarControls() {
   const params = new URLSearchParams(location.search);
   const now = new Date();
   const calendar = readChartCalendar(params, now);
-  const { period, date } = calendar;
+  const { period, date, range } = calendar;
   const { start, end } = chartCalendarRange(calendar);
   const selectedWeek = isoWeek(date);
   const year = period === "week" ? selectedWeek.year : date.getFullYear();
   const currentYear = period === "week" ? isoWeek(now).year : now.getFullYear();
-  const earliestYear = Math.min(firstActivity?.getFullYear() ?? currentYear - 10, year);
+  const firstYear = firstActivity
+    ? period === "week" ? isoWeek(firstActivity).year : firstActivity.getFullYear()
+    : currentYear - 10;
+  const earliestYear = Math.min(firstYear, year);
   const years = Array.from({ length: currentYear - earliestYear + 1 }, (_, i) => currentYear - i);
   const formatter = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "long", day: "numeric" });
   const lastDay = new Date(end.getTime() - 1000);
@@ -32,9 +35,9 @@ export default function ChartCalendarControls() {
   return (
     <div className="flex flex-col gap-3 items-start">
       <div className="top-chart-periods max-w-full overflow-x-auto">
-        <PeriodSelector current={period} setter={(value: ChartPeriod) => select(now, value)} disableCache />
+        <PeriodSelector current={range ? "" : period} setter={(value: ChartPeriod) => select(date, value)} disableCache />
       </div>
-      {period !== "all_time" && (
+      {!range && period !== "all_time" && (
         <div className="flex flex-wrap items-center gap-3">
           <button className="default" onClick={() => select(moveChartPeriod(calendar, -1))}>
             Previous {period}
@@ -94,10 +97,12 @@ export default function ChartCalendarControls() {
         </div>
       )}
       <p className="text-sm text-color-fg-secondary">
-        {period === "all_time" ? "All Time" : period === "day" ? formatter.format(start)
+        {range ? `Selected range: ${start.toLocaleString()} – ${lastDay.toLocaleString()}`
+          : period === "all_time" ? "All Time" : period === "day" ? formatter.format(start)
           : `${formatter.format(start)} – ${formatter.format(lastDay)}`}
-        {period !== "all_time" && " · Your local timezone"}
+        {(range || period !== "all_time") && " · Your local timezone"}
       </p>
+      {range && <p className="text-sm text-color-fg-secondary">Choose a period above to browse calendar dates.</p>}
     </div>
   );
 }

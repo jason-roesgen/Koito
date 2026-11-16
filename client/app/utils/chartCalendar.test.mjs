@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   isoWeek, isoWeekStart, localDateValue, moveChartPeriod, readChartCalendar,
-  chartApiParams, chartCalendarParams, chartCalendarRange,
+  chartApiParams, chartCalendarParams, chartCalendarRange, rankingTimeframe, rankingLinkParams, fetchRankingPeriod,
 } from "./chartCalendar.ts";
 
 const now = new Date(2026, 10, 9, 21, 0);
@@ -95,7 +95,9 @@ test("pagination and URL history preserve the selected period and ranking", () =
 });
 
 test("all time removes date restrictions and preserves unrelated filters", () => {
-  const query = chartApiParams(params("period=all_time&date=2024-02-29&year=2024&from=1&to=2&rank_by=time&page=3"), now);
+  const selected = chartCalendarParams(params("date=2024-02-29&year=2024&from=1&to=2&rank_by=time"), { period: "all_time", date: now });
+  selected.set("page", "3");
+  const query = chartApiParams(selected, now);
   for (const key of ["date", "year", "month", "week", "from", "to"]) assert.equal(query.has(key), false);
   assert.equal(query.get("period"), "all_time");
   assert.equal(query.get("rank_by"), "time");
@@ -116,4 +118,96 @@ test("malformed or future dates fall back safely and invalid pages use page one"
   for (const page of ["0", "-1", "NaN", "1.5", "Infinity", "9007199254740992"]) {
     assert.equal(chartApiParams(params({ page }), now).get("page"), "1");
   }
+});
+
+
+test("dashboard query and drilldown preserve the same rolling window", () => {
+  for (const period of ["day", "week", "month", "year", "all_time"]) {
+    const source = rankingTimeframe(period, now);
+    const link = rankingLinkParams({ ...source, rank_by: "time", artist_id: 7, album_id: 9 });
+    const destination = chartApiParams(link, new Date(now.getTime() + 60000));
+    for (const key of ["from", "to"]) {
+      assert.equal(destination.get(key), source[key] === undefined ? null : String(source[key]));
+    }
+    assert.equal(destination.get("rank_by"), "time");
+    assert.equal(destination.get("artist_id"), "7");
+    assert.equal(destination.get("album_id"), "9");
+    assert.equal(Boolean(readChartCalendar(link, now).range), period !== "all_time");
+  }
+  const source = rankingTimeframe("week", now);
+  assert.equal(source.from, new Date(2026, 10, 2, 21).getTime() / 1000);
+  assert.equal(source.to, now.getTime() / 1000);
+});
+
+test("explicit legacy ranges survive pagination and retain precedence", () => {
+  const query = params("period=all_time&from=1700000000&to=1700600000&page=4&rank_by=time");
+  for (const page of ["1", "2", "4"]) {
+    query.set("page", page);
+    const api = chartApiParams(query, now);
+    assert.equal(api.get("from"), "1700000000");
+    assert.equal(api.get("to"), "1700600000");
+    assert.equal(api.get("page"), page);
+  }
+});
+
+test("switching an exact dashboard range to Week explicitly selects an ISO week", () => {
+  const source = rankingLinkParams({ ...rankingTimeframe("week", now), rank_by: "time" });
+  const range = readChartCalendar(source, now);
+  const selectedWeek = chartCalendarParams(source, { period: "week", date: range.date });
+  assert.equal(selectedWeek.has("from"), false);
+  assert.equal(selectedWeek.has("to"), false);
+  const api = chartApiParams(selectedWeek, now);
+  assert.equal(api.get("from"), String(new Date(2026, 10, 9).getTime() / 1000));
+  assert.equal(api.get("to"), String(new Date(2026, 10, 16).getTime() / 1000 - 1));
+});
+
+test("changing calendar tabs preserves the selected historical anchor", () => {
+  const selectedDay = selected("day", "2021-01-01");
+  const week = readChartCalendar(chartCalendarParams(params("rank_by=time"), { period: "week", date: selectedDay.date }), now);
+  assert.deepEqual(isoWeek(week.date), { year: 2020, week: 53 });
+  const range = chartCalendarRange(week);
+  assert.equal(localDateValue(range.start), "2020-12-28");
+  assert.equal(localDateValue(range.end), "2021-01-04");
+});
+
+test("legacy month and ISO week work without an explicit year", () => {
+  assert.equal(localDateValue(readChartCalendar(params("month=2"), now).date), "2026-02-01");
+  assert.equal(localDateValue(readChartCalendar(params("month=12"), now).date), "2025-12-01");
+  assert.equal(localDateValue(readChartCalendar(params("week=3"), now).date), "2026-01-12");
+  assert.equal(localDateValue(readChartCalendar(params("week=50"), now).date), "2025-12-08");
+  assert.deepEqual(isoWeek(readChartCalendar(params("week=53"), new Date(2021, 0, 1)).date), { year: 2020, week: 53 });
+  assert.equal(readChartCalendar(params("year=2024&month=&week="), now).period, "year");
+  assert.equal(readChartCalendar(params("period=week&year=2024&month=2"), now).period, "month");
+});
+
+test("midnight DST skips never carry 01:00 into the next boundary", () => {
+  if (process.env.TZ !== "America/Santiago") return;
+  const day = selected("day", "2026-09-06");
+  const range = chartCalendarRange(day);
+  assert.equal(range.start.getHours(), 1); // Midnight does not exist on this date.
+  assert.equal(range.end.getTime(), new Date(2026, 8, 7).getTime());
+  const api = chartApiParams(params("period=day&date=2026-09-06"), now);
+  assert.equal(Number(api.get("to")), 1788749999);
+  assert.ok(new Date(2026, 8, 7, 0, 30).getTime() / 1000 > Number(api.get("to")));
+  assert.equal(moveChartPeriod(day, 1).getHours(), 0);
+  const month = chartCalendarRange(selected("month", "2019-09-08"));
+  assert.equal(month.start.getTime(), new Date(2019, 8, 1).getTime());
+  assert.equal(month.end.getTime(), new Date(2019, 9, 1).getTime());
+});
+
+
+test("refetches capture a fresh rolling window and keep each response's own range", async () => {
+  const requested = [];
+  const request = async timeframe => { requested.push(timeframe); return { items: [] }; };
+  const first = await fetchRankingPeriod("week", request, now);
+  const later = new Date(now.getTime() + 60000);
+  const second = await fetchRankingPeriod("week", request, later);
+  assert.equal(second.timeframe.to - first.timeframe.to, 60);
+  assert.equal(first.timeframe.to, Math.floor(now.getTime() / 1000));
+  for (const page of [first, second]) {
+    const destination = chartApiParams(rankingLinkParams(page.timeframe), later);
+    assert.equal(destination.get("from"), String(page.timeframe.from));
+    assert.equal(destination.get("to"), String(page.timeframe.to));
+  }
+  assert.equal(requested.length, 2);
 });
