@@ -1,7 +1,8 @@
-# Top Tracks calendar navigation
+# Top charts calendar navigation
 
-Top Tracks uses local calendar days, ISO weeks (Monday–Sunday), calendar months
-and calendar years. Other chart pages retain their existing rolling shortcuts.
+Top Tracks, Top Albums and Top Artists share local calendar days, ISO weeks
+(Monday–Sunday), calendar months and calendar years. Last Played retains its
+existing rolling shortcuts.
 The Day picker selects a historical date; previous/next controls move one period.
 The next control is disabled in the current period. All Time has no date controls.
 
@@ -28,8 +29,9 @@ corepack yarn typecheck
 corepack yarn build
 ```
 
-Browser checks: select a historical day, cross an ISO week/year boundary, move
-between periods, paginate a multi-page list and use back/forward. Confirm ranking
-and artist/album filters remain in the URL, empty results are explicit, and the
-controls fit a mobile viewport. Demo data is synthetic; these checks do not require
-production data or a running production backend.
+On each ranking page, select a historical day, cross an ISO week/year boundary,
+move between periods, paginate a multi-page list and use back/forward. Confirm
+ranking and artist/album filters remain in the URL, empty results are explicit,
+and the controls fit a mobile viewport. Inactive period labels share the muted
+color. Demo data is synthetic; these checks do not require production data or a
+running production backend.

@@ -1,5 +1,5 @@
-export type TrackPeriod = "day" | "week" | "month" | "year" | "all_time";
-export type TrackCalendar = { period: TrackPeriod; date: Date };
+export type ChartPeriod = "day" | "week" | "month" | "year" | "all_time";
+export type ChartCalendar = { period: ChartPeriod; date: Date };
 
 export function localDateValue(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -18,11 +18,11 @@ export function isoWeekStart(year: number, week: number): Date {
   return new Date(year, 0, 4 - ((jan4.getDay() + 6) % 7) + (week - 1) * 7);
 }
 
-export function readTrackCalendar(params: URLSearchParams, now = new Date()): TrackCalendar {
+export function readChartCalendar(params: URLSearchParams, now = new Date()): ChartCalendar {
   const requested = params.get("period");
   const period = (["day", "week", "month", "year", "all_time"].includes(requested ?? "")
     ? requested
-    : params.has("week") ? "week" : params.has("month") ? "month" : params.has("year") ? "year" : "day") as TrackPeriod;
+    : params.has("week") ? "week" : params.has("month") ? "month" : params.has("year") ? "year" : "day") as ChartPeriod;
   let date = new Date(now);
   const value = params.get("date");
   if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -48,7 +48,7 @@ export function readTrackCalendar(params: URLSearchParams, now = new Date()): Tr
 
 // Construct calendar boundaries in local time. Calendar arithmetic, rather than
 // fixed millisecond offsets, keeps days and weeks correct across DST changes.
-export function trackCalendarRange({ period, date }: TrackCalendar): { start: Date; end: Date } {
+export function chartCalendarRange({ period, date }: ChartCalendar): { start: Date; end: Date } {
   let start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const end = new Date(start);
   switch (period) {
@@ -72,8 +72,8 @@ export function trackCalendarRange({ period, date }: TrackCalendar): { start: Da
   return { start, end }; // end is exclusive
 }
 
-export function moveTrackPeriod(calendar: TrackCalendar, direction: number): Date {
-  const { start } = trackCalendarRange(calendar);
+export function moveChartPeriod(calendar: ChartCalendar, direction: number): Date {
+  const { start } = chartCalendarRange(calendar);
   switch (calendar.period) {
     case "day": start.setDate(start.getDate() + direction); break;
     case "week": start.setDate(start.getDate() + direction * 7); break;
@@ -83,7 +83,7 @@ export function moveTrackPeriod(calendar: TrackCalendar, direction: number): Dat
   return start;
 }
 
-export function trackCalendarParams(params: URLSearchParams, calendar: TrackCalendar): URLSearchParams {
+export function chartCalendarParams(params: URLSearchParams, calendar: ChartCalendar): URLSearchParams {
   const next = new URLSearchParams(params);
   for (const key of ["year", "month", "week", "from", "to"]) next.delete(key);
   next.set("period", calendar.period);
@@ -93,14 +93,14 @@ export function trackCalendarParams(params: URLSearchParams, calendar: TrackCale
   return next;
 }
 
-export function trackApiParams(params: URLSearchParams, now = new Date()): URLSearchParams {
-  const calendar = readTrackCalendar(params, now);
-  const next = trackCalendarParams(params, calendar);
+export function chartApiParams(params: URLSearchParams, now = new Date()): URLSearchParams {
+  const calendar = readChartCalendar(params, now);
+  const next = chartCalendarParams(params, calendar);
   const page = Number(params.get("page"));
   next.set("page", String(Number.isSafeInteger(page) && page > 0 ? page : 1));
   next.delete("date");
   if (calendar.period !== "all_time") {
-    const { start, end } = trackCalendarRange(calendar);
+    const { start, end } = chartCalendarRange(calendar);
     next.set("from", String(start.getTime() / 1000));
     // SQLite uses BETWEEN on integer-second timestamps (inclusive endpoints).
     next.set("to", String(end.getTime() / 1000 - 1));

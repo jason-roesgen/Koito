@@ -2,19 +2,19 @@ import { useLocation, useNavigate } from "react-router";
 import PeriodSelector from "./PeriodSelector";
 import { useAppContext } from "~/providers/AppProvider";
 import {
-  isoWeek, isoWeekStart, localDateValue, moveTrackPeriod, readTrackCalendar,
-  trackCalendarParams, trackCalendarRange, type TrackPeriod,
-} from "~/utils/trackCalendar";
+  isoWeek, isoWeekStart, localDateValue, moveChartPeriod, readChartCalendar,
+  chartCalendarParams, chartCalendarRange, type ChartPeriod,
+} from "~/utils/chartCalendar";
 
-export default function TrackCalendarControls() {
+export default function ChartCalendarControls() {
   const location = useLocation();
   const navigate = useNavigate();
   const { firstActivity } = useAppContext();
   const params = new URLSearchParams(location.search);
   const now = new Date();
-  const calendar = readTrackCalendar(params, now);
+  const calendar = readChartCalendar(params, now);
   const { period, date } = calendar;
-  const { start, end } = trackCalendarRange(calendar);
+  const { start, end } = chartCalendarRange(calendar);
   const selectedWeek = isoWeek(date);
   const year = period === "week" ? selectedWeek.year : date.getFullYear();
   const currentYear = period === "week" ? isoWeek(now).year : now.getFullYear();
@@ -24,19 +24,19 @@ export default function TrackCalendarControls() {
   const lastDay = new Date(end.getTime() - 1000);
   const selectClass = "px-2 py-1 rounded border border-gray-400";
 
-  const select = (nextDate: Date, nextPeriod: TrackPeriod = period) => {
-    const next = trackCalendarParams(params, { period: nextPeriod, date: nextDate });
+  const select = (nextDate: Date, nextPeriod: ChartPeriod = period) => {
+    const next = chartCalendarParams(params, { period: nextPeriod, date: nextDate });
     navigate(`${location.pathname}?${next}`);
   };
 
   return (
     <div className="flex flex-col gap-3 items-start">
-      <div className="top-tracks-periods max-w-full overflow-x-auto">
-        <PeriodSelector current={period} setter={(value: TrackPeriod) => select(now, value)} disableCache />
+      <div className="top-chart-periods max-w-full overflow-x-auto">
+        <PeriodSelector current={period} setter={(value: ChartPeriod) => select(now, value)} disableCache />
       </div>
       {period !== "all_time" && (
         <div className="flex flex-wrap items-center gap-3">
-          <button className="default" onClick={() => select(moveTrackPeriod(calendar, -1))}>
+          <button className="default" onClick={() => select(moveChartPeriod(calendar, -1))}>
             Previous {period}
           </button>
           {period === "day" ? (
@@ -45,7 +45,7 @@ export default function TrackCalendarControls() {
               <input type="date" className={selectClass} value={localDateValue(date)} max={localDateValue(now)}
                 onChange={(event) => {
                   if (event.target.value) {
-                    const next = readTrackCalendar(new URLSearchParams({ period: "day", date: event.target.value }), now);
+                    const next = readChartCalendar(new URLSearchParams({ period: "day", date: event.target.value }), now);
                     select(next.date);
                   }
                 }} />
@@ -87,8 +87,8 @@ export default function TrackCalendarControls() {
               )}
             </>
           )}
-          <button className="default" disabled={start >= trackCalendarRange({ period, date: now }).start}
-            onClick={() => select(moveTrackPeriod(calendar, 1))}>
+          <button className="default" disabled={start >= chartCalendarRange({ period, date: now }).start}
+            onClick={() => select(moveChartPeriod(calendar, 1))}>
             Next {period}
           </button>
         </div>
