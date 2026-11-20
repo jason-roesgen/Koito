@@ -11,7 +11,7 @@ export function CertificationDate({ value }: { value: string }) {
   return <time dateTime={value} title={new Date(value).toLocaleString()}>{new Date(value).toLocaleString()}</time>;
 }
 
-function AwardBadge({ award }: { award: Certification }) {
+export function AwardBadge({ award }: { award: Certification }) {
   return (
     <span className="inline-flex items-center gap-2 font-semibold" style={{ color: colors[award.tier] }}>
       <span aria-hidden="true" className="inline-flex w-7 shrink-0 items-center justify-center text-2xl leading-none">{awardIcons[award.tier]}</span>

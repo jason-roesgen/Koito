@@ -51,6 +51,8 @@ artist credits, or correcting metadata may change boards and crossing dates.
 A song here means a Koito track ID; separate versions remain separate until merged.
 The old 20/40-play thresholds are not applied automatically to pre-2022 history.
 
+The combined artist/song listing is documented in [HALL_OF_FAME.md](HALL_OF_FAME.md).
+
 Read-only APIs, protected by the existing login gate:
 
 - `GET /apis/web/v1/track/{id}/certifications`

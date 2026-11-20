@@ -1,4 +1,4 @@
-import { ExternalLink, History, Home, Info } from "lucide-react";
+import { ExternalLink, History, Home, Info, Trophy } from "lucide-react";
 import SidebarSearch from "./SidebarSearch";
 import SidebarItem from "./SidebarItem";
 import SidebarSettings from "./SidebarSettings";
@@ -52,6 +52,10 @@ export default function Sidebar() {
           modal={<></>}
         >
           <History size={iconSize} />
+        </SidebarItem>
+        <SidebarItem space={10} to="/hall-of-fame" name="Hall of Fame" onClick={() => {}} modal={<></>}>
+          <Trophy size={iconSize} aria-hidden="true" />
+          <span className="sr-only">Hall of Fame</span>
         </SidebarItem>
       </div>
       <div className="flex gap-4 sm:flex-col">
