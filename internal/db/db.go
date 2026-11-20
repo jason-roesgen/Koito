@@ -111,6 +111,7 @@ type ExportStore interface {
 }
 
 type DB interface {
+	HallOfFameStore
 	CertificationStore
 	HourlyListeningStore
 	ArtistStore

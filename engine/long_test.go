@@ -498,6 +498,22 @@ func TestLoginGate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ネクライトーキー", artist.Name)
 
+	t.Run("Hall of Fame", func(t *testing.T) {
+		for _, authenticated := range []bool{false, true} {
+			req, err := http.NewRequest("GET", host()+"/apis/web/v1/hall-of-fame", nil)
+			require.NoError(t, err)
+			want := http.StatusUnauthorized
+			if authenticated {
+				req.Header.Set("Authorization", "Token "+apikey)
+				want = http.StatusOK
+			}
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, want, resp.StatusCode)
+		}
+	})
+
 	cfg.SetLoginGate(false)
 
 	truncateTestData(t)

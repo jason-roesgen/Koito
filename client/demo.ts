@@ -1,3 +1,4 @@
+import { demoHallOfFame } from "./app/utils/hallOfFame";
 import type { Plugin } from "vite";
 import type { Album, Artist, Track, ImageList } from "./api/api";
 import type { Certification, TrackCertifications, MilestoneHistory } from "./api/certifications";
@@ -129,6 +130,13 @@ export function demoDataPlugin(): Plugin {
         if (req.method !== "GET") return send({ error: "Synthetic demo is read-only. Disable demo mode to edit local data." }, 403);
         const path = url.pathname.slice("/apis/web/v1/".length), p = url.searchParams;
         const rows = select(p);
+        if (path === "hall-of-fame") {
+          const songs = tracks.flatMap(track => {
+            const certificate = trackCertifications(track);
+            return certificate.current ? [{ track_id: track.id, title: track.title, artists: track.artists.map(a => ({ ...a, image: artists.find(artist => artist.id === a.id)!.image })), image: track.image, plays: certificate.plays, current: certificate.current }] : [];
+          });
+          return send(demoHallOfFame(songs, p));
+        }
         if (path === "milestones") return send(milestoneHistory());
         const certification = path.match(/^(track|artist)\/([^/]+)\/certifications$/);
         if (certification) {

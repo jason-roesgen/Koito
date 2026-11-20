@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const CertificationPlayStep = 200
+
 type Certification struct {
 	Tier      string     `json:"tier"`
 	Multiple  int64      `json:"multiple"`
@@ -15,8 +17,8 @@ type Certification struct {
 // CertificationTarget labels the latest 200-play step. Diamond wins at shared
 // thresholds, followed by Platinum. Thus 1,000 is Diamond, 1,200 is 3× Platinum.
 func CertificationTarget(plays int64) Certification {
-	threshold := plays / 200 * 200
-	award := Certification{Plays: threshold, Tier: "gold", Multiple: threshold / 200}
+	threshold := plays / CertificationPlayStep * CertificationPlayStep
+	award := Certification{Plays: threshold, Tier: "gold", Multiple: threshold / CertificationPlayStep}
 	if threshold > 0 && threshold%1000 == 0 {
 		award.Tier, award.Multiple = "diamond", threshold/1000
 	} else if threshold > 0 && threshold%400 == 0 {
@@ -35,20 +37,20 @@ type TrackCertifications struct {
 }
 
 func NewTrackCertifications(id int32, title string) *TrackCertifications {
-	return &TrackCertifications{TrackID: id, Title: title, Next: CertificationTarget(200), History: []Certification{}}
+	return &TrackCertifications{TrackID: id, Title: title, Next: CertificationTarget(CertificationPlayStep), History: []Certification{}}
 }
 
 // AddListen expects recorded listens in ascending timestamp order.
 func (track *TrackCertifications) AddListen(at time.Time) {
 	track.Plays++
-	if track.Plays%200 == 0 {
+	if track.Plays%CertificationPlayStep == 0 {
 		award := CertificationTarget(track.Plays)
 		utc := at.UTC()
 		award.ReachedAt = &utc
 		track.History = append(track.History, award)
 		track.Current = &track.History[len(track.History)-1]
 	}
-	track.Next = CertificationTarget((track.Plays/200 + 1) * 200)
+	track.Next = CertificationTarget((track.Plays/CertificationPlayStep + 1) * CertificationPlayStep)
 }
 
 type ArtistCertifications struct {
