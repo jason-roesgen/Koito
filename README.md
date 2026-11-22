@@ -1,7 +1,6 @@
 ## About this fork
 
-Hi everyone, who's checking out this fork.
-It's my first fork. I've forked it because I wanted to add some features in there that are missing in the original one. I'm using it in combination with my local Navidrome instance.
+Hey everyone! It's my first fork. I wanted to add some features in there that are missing in the original one. I'm using it in combination with my local Navidrome instance.
 I’m new to Go, so I’ve used AI assistance while working on this fork.
 
 ### What I’ve added
