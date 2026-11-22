@@ -6,6 +6,12 @@ _Koito (小糸) is a Japanese surname. It is also homophonous with the words 恋
 
 </div>
 
+## About this fork
+
+I forked Koito to do a bit of vibe coding and add a few features I wanted for my own setup, like listening certifications and a Hall of Fame. I call this fork **Koito JR**.
+
+Big thanks to [gabehf and the Koito contributors](https://github.com/gabehf/Koito) for building the original. The demo and installation instructions below are for upstream Koito.
+
 <div align="center">
   
   [![Ko-Fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/gabehf)
