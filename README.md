@@ -1,3 +1,25 @@
+## About this fork
+
+Hi everyone, who's checking out this fork.
+It's my first fork. I've forked it because I wanted to add some features in there that are missing in the original one. I'm using it in combination with my local Navidrome instance.
+I’m new to Go, so I’ve used AI assistance while working on this fork.
+
+### What I’ve added
+
+- [x] Listening milestones and play-count certifications
+- [x] Hall of Fame for certified songs and artists
+- [x] Calendar navigation for track, album, and artist rankings
+
+### What I’d like to add next
+
+- [ ] Listening-time certifications based on estimated listening time
+- [ ] Listening Obsessions for consecutive replays
+- [ ] Historical chart positions for tracks
+
+Big thanks to [gabehf and the Koito contributors](https://github.com/gabehf/Koito) for building the original. The demo and installation instructions below are for upstream Koito.
+
+---
+
 <div align="center">
   
 ![Koito logo](https://github.com/user-attachments/assets/bd69a050-b40f-4da7-8ff1-4607554bfd6d)
@@ -5,12 +27,6 @@
 _Koito (小糸) is a Japanese surname. It is also homophonous with the words 恋と (koi to), meaning "and/with love"._
 
 </div>
-
-## About this fork
-
-I forked Koito to do a bit of vibe coding and add a few features I wanted for my own setup, like listening certifications and a Hall of Fame. I call this fork **Koito JR**.
-
-Big thanks to [gabehf and the Koito contributors](https://github.com/gabehf/Koito) for building the original. The demo and installation instructions below are for upstream Koito.
 
 <div align="center">
   
@@ -50,14 +66,14 @@ See the [installation guide](https://koito.io/guides/installation/), or, if you 
 
 ```yaml
 services:
-  koito:
-    image: gabehf/koito:latest
-    container_name: koito
-    ports:
-      - "4110:4110"
-    volumes:
-      - ./koito:/etc/koito
-    restart: unless-stopped
+    koito:
+        image: gabehf/koito:latest
+        container_name: koito
+        ports:
+            - "4110:4110"
+        volumes:
+            - ./koito:/etc/koito
+        restart: unless-stopped
 ```
 
 ## Importing Data
