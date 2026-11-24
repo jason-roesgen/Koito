@@ -23,6 +23,7 @@ type HallSong struct {
 	Image   models.ImageList `json:"image"`
 	Plays   int64            `json:"plays"`
 	Current Certification    `json:"current"`
+	Seconds int64            `json:"seconds,omitempty"`
 }
 
 type HallArtist struct {
@@ -33,8 +34,8 @@ type HallArtist struct {
 }
 
 type HallOfFameOpts struct {
-	View, Query, Tier, Sort, Order string
-	Page                           int
+	View, Query, Tier, Sort, Order, Metric string
+	Page                                   int
 }
 
 type HallOfFame struct {
@@ -111,7 +112,11 @@ func BuildHallOfFame(songs []HallSong, opts HallOfFameOpts) *HallOfFame {
 	}
 	sort.Slice(result.Songs, func(i, j int) bool {
 		a, b := result.Songs[i], result.Songs[j]
-		cmp := cmp.Compare(a.Plays, b.Plays)
+		valueA, valueB := a.Plays, b.Plays
+		if opts.Metric == CertificationTime {
+			valueA, valueB = a.Seconds, b.Seconds
+		}
+		cmp := cmp.Compare(valueA, valueB)
 		if opts.Sort == "name" {
 			cmp = strings.Compare(strings.ToLower(a.Title), strings.ToLower(b.Title))
 		}

@@ -12,16 +12,17 @@ import (
 )
 
 type certificationStub struct {
-	id  int32
-	err error
+	id     int32
+	metric string
+	err    error
 }
 
-func (s *certificationStub) GetTrackCertifications(_ context.Context, id int32) (*db.TrackCertifications, error) {
-	s.id = id
+func (s *certificationStub) GetTrackCertifications(_ context.Context, id int32, metric string) (*db.TrackCertifications, error) {
+	s.id, s.metric = id, metric
 	return db.NewTrackCertifications(id, "test"), s.err
 }
-func (s *certificationStub) GetArtistCertifications(_ context.Context, id int32) (*db.ArtistCertifications, error) {
-	s.id = id
+func (s *certificationStub) GetArtistCertifications(_ context.Context, id int32, metric string) (*db.ArtistCertifications, error) {
+	s.id, s.metric = id, metric
 	return &db.ArtistCertifications{Counts: map[string]int{}, Tracks: []*db.TrackCertifications{}}, s.err
 }
 func (s *certificationStub) GetMilestoneHistory(context.Context) (*db.MilestoneHistory, error) {
@@ -54,5 +55,23 @@ func TestCertificationHandler(t *testing.T) {
 	GetCertificationsHandler(&certificationStub{}, "milestones").ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
 	if response.Code != 200 {
 		t.Fatalf("milestones: %d", response.Code)
+	}
+}
+
+func TestCertificationMetricSelection(t *testing.T) {
+	for _, kind := range []string{"track", "artist"} {
+		for _, metric := range []string{"time", "unknown"} {
+			store := &certificationStub{}
+			router := chi.NewRouter()
+			router.Get("/{id}", GetCertificationsHandler(store, kind))
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/1?metric="+metric, nil))
+			if metric == "time" && (w.Code != http.StatusOK || store.metric != db.CertificationTime) {
+				t.Fatalf("%s time mode: status %d, metric %q", kind, w.Code, store.metric)
+			}
+			if metric == "unknown" && (w.Code != http.StatusBadRequest || store.id != 0) {
+				t.Fatalf("%s invalid mode reached store: status %d, id %d", kind, w.Code, store.id)
+			}
+		}
 	}
 }

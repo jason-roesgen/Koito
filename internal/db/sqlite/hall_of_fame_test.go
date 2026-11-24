@@ -88,7 +88,7 @@ func TestHallOfFame(t *testing.T) {
 		t.Fatalf("wrong counts: %+v", all)
 	}
 	for _, song := range all.Songs {
-		individual, err := s.GetTrackCertifications(ctx, song.TrackID)
+		individual, err := s.GetTrackCertifications(ctx, song.TrackID, db.CertificationPlays)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -199,5 +199,85 @@ func TestHallOfFameCrossingWithTrailingListens(t *testing.T) {
 	if song.Plays != 1399 || song.Current.Tier != "platinum" || song.Current.Multiple != 3 ||
 		song.Current.ReachedAt == nil || song.Current.ReachedAt.Unix() != 2200 || len(song.Artists) != 1 {
 		t.Fatalf("unexpected song: %+v", song)
+	}
+}
+
+func TestListeningTimeCertificationsAgreeAcrossViews(t *testing.T) {
+	ctx := context.Background()
+	s := hallFixture(t)
+	hallSong(t, s, 1, 150) // 201 seconds each: Gold at listen 150, under 200 plays.
+	hallSong(t, s, 2, 200) // Unknown duration: play Gold only.
+	hallSong(t, s, 3, 3)   // One long recording earns Diamond per play.
+	for _, q := range []string{
+		"UPDATE tracks SET duration = 201 WHERE id = 1",
+		"UPDATE tracks SET duration = 150000 WHERE id = 3",
+		"INSERT INTO artist_tracks VALUES(2,1,0)",
+		"INSERT INTO track_aliases VALUES(1,'Alternate title','test',1)",
+	} {
+		if _, err := s.db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.db.Exec("INSERT INTO listens VALUES(1,?,1,'')", time.Now().AddDate(1, 0, 0).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	songs, err := s.GetHallOfFame(ctx, db.HallOfFameOpts{View: "songs", Metric: db.CertificationTime})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(songs.Songs) != 2 || songs.Songs[0].TrackID != 3 || songs.Songs[1].TrackID != 1 ||
+		songs.Counts["gold"] != 1 || songs.Counts["diamond"] != 1 || songs.CertifiedArtists != 2 {
+		t.Fatalf("bad time leaderboard: %+v", songs)
+	}
+	for _, song := range songs.Songs {
+		track, err := s.GetTrackCertifications(ctx, song.TrackID, db.CertificationTime)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if track.Plays != song.Plays || track.Seconds != song.Seconds || track.Current == nil || track.Current.Tier != song.Current.Tier ||
+			track.Current.Multiple != song.Current.Multiple ||
+			!track.Current.ReachedAt.Equal(*song.Current.ReachedAt) {
+			t.Fatalf("track and leaderboard disagree: %+v / %+v", track, song)
+		}
+		if song.TrackID == 3 && (len(track.History) != 5 || song.Current.Multiple != 3 ||
+			track.History[0].ReachedAt.Unix() != 1001 || track.History[2].ReachedAt.Unix() != 1001 ||
+			track.History[3].ReachedAt.Unix() != 1002 || track.History[4].ReachedAt.Unix() != 1003) {
+			t.Fatalf("Diamond crossing dates incorrect: %+v", track)
+		}
+	}
+	if songs.Songs[1].Current.ReachedAt.Unix() != 1150 {
+		t.Fatalf("expected ceil crossing at 150th listen: %+v", songs.Songs[1].Current)
+	}
+	artist, err := s.GetArtistCertifications(ctx, 2, db.CertificationTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if artist.Counts["gold"] != 1 || len(artist.Tracks) != 1 || artist.Tracks[0].Current.ReachedAt.Unix() != 1150 {
+		t.Fatalf("shared credit differs: %+v", artist)
+	}
+	playGold, err := s.GetTrackCertifications(ctx, 2, db.CertificationPlays)
+	if err != nil || playGold.Current == nil || playGold.Current.Tier != "gold" {
+		t.Fatalf("missing play Gold for unknown-duration song: %+v (%v)", playGold, err)
+	}
+	unknown, err := s.GetTrackCertifications(ctx, 2, db.CertificationTime)
+	if err != nil || unknown.Seconds != 0 || unknown.Current != nil || unknown.Plays != 200 {
+		t.Fatalf("unknown duration awarded time: %+v (%v)", unknown, err)
+	}
+	if _, err := s.db.Exec("UPDATE tracks SET duration = 300 WHERE id = 1"); err != nil {
+		t.Fatal(err)
+	}
+	adjusted, err := s.GetTrackCertifications(ctx, 1, db.CertificationTime)
+	if err != nil || adjusted.Current == nil || adjusted.Current.ReachedAt.Unix() != 1100 {
+		t.Fatalf("duration correction did not move the crossing date: %+v (%v)", adjusted, err)
+	}
+	if _, err := s.db.Exec("UPDATE tracks SET duration = 200 WHERE id = 1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec("DELETE FROM listens WHERE track_id = 1 AND listened_at = 1150"); err != nil {
+		t.Fatal(err)
+	}
+	corrected, err := s.GetHallOfFame(ctx, db.HallOfFameOpts{View: "artists", Metric: db.CertificationTime})
+	if err != nil || corrected.CertifiedSongs != 1 || corrected.CertifiedArtists != 1 {
+		t.Fatalf("time awards stale after corrections: %+v (%v)", corrected, err)
 	}
 }

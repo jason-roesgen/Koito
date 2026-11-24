@@ -14,7 +14,7 @@ import (
 func GetHallOfFameHandler(store db.HallOfFameStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Query()
-		opts := db.HallOfFameOpts{View: p.Get("view"), Query: strings.TrimSpace(p.Get("q")), Tier: p.Get("tier"), Sort: p.Get("sort"), Order: p.Get("order"), Page: 1}
+		opts := db.HallOfFameOpts{View: p.Get("view"), Metric: p.Get("metric"), Query: strings.TrimSpace(p.Get("q")), Tier: p.Get("tier"), Sort: p.Get("sort"), Order: p.Get("order"), Page: 1}
 		if opts.View == "" {
 			opts.View = "artists"
 		}
@@ -40,7 +40,7 @@ func GetHallOfFameHandler(store db.HallOfFameStore) http.HandlerFunc {
 			}
 			opts.Page = n
 		}
-		if !valid(opts.View, "songs", "artists") || !valid(opts.Tier, "", "gold", "platinum", "diamond") || !valid(opts.Sort, "count", "name", "date") || !valid(opts.Order, "asc", "desc") || utf8.RuneCountInString(opts.Query) > 200 {
+		if !valid(opts.Metric, "", db.CertificationPlays, db.CertificationTime) || !valid(opts.View, "songs", "artists") || !valid(opts.Tier, "", "gold", "platinum", "diamond") || !valid(opts.Sort, "count", "name", "date") || !valid(opts.Order, "asc", "desc") || utf8.RuneCountInString(opts.Query) > 200 {
 			utils.WriteError(w, "invalid Hall of Fame filters", 400)
 			return
 		}

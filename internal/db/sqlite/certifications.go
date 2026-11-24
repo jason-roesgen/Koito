@@ -9,16 +9,23 @@ import (
 	"github.com/gabehf/koito/internal/db"
 )
 
-func (s *Sqlite) GetTrackCertifications(ctx context.Context, id int32) (*db.TrackCertifications, error) {
+func (s *Sqlite) GetTrackCertifications(ctx context.Context, id int32, metric string) (*db.TrackCertifications, error) {
 	var title string
-	if err := s.db.QueryRowContext(ctx, "SELECT title FROM tracks_with_title WHERE id = ?", id).Scan(&title); err != nil {
+	var duration int64
+	// A single read transaction keeps the duration and the list of listens in sync.
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if err := tx.QueryRowContext(ctx, "SELECT title, duration FROM tracks_with_title WHERE id = ? ORDER BY title LIMIT 1", id).Scan(&title, &duration); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, db.ErrNotFound
 		}
 		return nil, err
 	}
-	track := db.NewTrackCertifications(id, title)
-	rows, err := s.db.QueryContext(ctx, `SELECT listened_at FROM listens WHERE track_id = ? AND listened_at <= ? ORDER BY listened_at`, id, time.Now().Unix())
+	track := newTrackCertification(id, title, metric)
+	rows, err := tx.QueryContext(ctx, `SELECT listened_at FROM listens WHERE track_id = ? AND listened_at <= ? ORDER BY listened_at`, id, time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}
@@ -28,12 +35,15 @@ func (s *Sqlite) GetTrackCertifications(ctx context.Context, id int32) (*db.Trac
 		if err := rows.Scan(&unix); err != nil {
 			return nil, err
 		}
-		track.AddListen(time.Unix(unix, 0))
+		addCertificationListen(track, time.Unix(unix, 0), duration, metric)
 	}
-	return track, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return track, tx.Commit()
 }
 
-func (s *Sqlite) GetArtistCertifications(ctx context.Context, id int32) (*db.ArtistCertifications, error) {
+func (s *Sqlite) GetArtistCertifications(ctx context.Context, id int32, metric string) (*db.ArtistCertifications, error) {
 	var exists int
 	if err := s.db.QueryRowContext(ctx, "SELECT 1 FROM artists WHERE id = ?", id).Scan(&exists); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -42,12 +52,18 @@ func (s *Sqlite) GetArtistCertifications(ctx context.Context, id int32) (*db.Art
 		return nil, err
 	}
 	board := &db.ArtistCertifications{Counts: map[string]int{"gold": 0, "platinum": 0, "diamond": 0}, Tracks: []*db.TrackCertifications{}}
-	// EXISTS gives each track one entry even when it has multiple artist credits.
+	// Pick one primary title per credited track before joining listens.
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT t.id, t.title, l.listened_at
-		FROM tracks_with_title t JOIN listens l ON l.track_id = t.id
-		WHERE EXISTS (SELECT 1 FROM artist_tracks a WHERE a.track_id = t.id AND a.artist_id = ?)
-		AND l.listened_at <= ?
+		WITH credited AS MATERIALIZED (
+			SELECT t.id, t.duration, (
+				SELECT MIN(alias) FROM track_aliases WHERE track_id = t.id AND is_primary = 1
+			) AS title
+			FROM artist_tracks a JOIN tracks t ON t.id = a.track_id
+			WHERE a.artist_id = ?
+		)
+		SELECT t.id, t.title, l.listened_at, t.duration
+		FROM credited t JOIN listens l ON l.track_id = t.id
+		WHERE t.title IS NOT NULL AND l.listened_at <= ?
 		ORDER BY t.id, l.listened_at`, id, time.Now().Unix())
 	if err != nil {
 		return nil, err
@@ -63,21 +79,36 @@ func (s *Sqlite) GetArtistCertifications(ctx context.Context, id int32) (*db.Art
 	for rows.Next() {
 		var trackID int32
 		var title string
-		var unix int64
-		if err := rows.Scan(&trackID, &title, &unix); err != nil {
+		var unix, duration int64
+		if err := rows.Scan(&trackID, &title, &unix, &duration); err != nil {
 			return nil, err
 		}
 		if track == nil || track.TrackID != trackID {
 			finish()
-			track = db.NewTrackCertifications(trackID, title)
+			track = newTrackCertification(trackID, title, metric)
 		}
-		track.AddListen(time.Unix(unix, 0))
+		addCertificationListen(track, time.Unix(unix, 0), duration, metric)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	finish()
 	return board, nil
+}
+
+func newTrackCertification(id int32, title, metric string) *db.TrackCertifications {
+	if metric == db.CertificationTime {
+		return db.NewTrackTimeCertifications(id, title)
+	}
+	return db.NewTrackCertifications(id, title)
+}
+
+func addCertificationListen(track *db.TrackCertifications, at time.Time, duration int64, metric string) {
+	if metric == db.CertificationTime {
+		track.AddTimedListen(at, duration)
+		return
+	}
+	track.AddListen(at)
 }
 
 func (s *Sqlite) GetMilestoneHistory(ctx context.Context) (*db.MilestoneHistory, error) {
