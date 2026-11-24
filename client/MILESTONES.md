@@ -26,8 +26,17 @@ The latest completed 200-play step determines the current certificate. At a shar
 threshold, Diamond takes priority over Platinum, which takes priority over Gold.
 Multipliers use 200/400/1,000 respectively, without an upper limit. The system counts
 recorded listens; it does not enforce premium-stream or playback-completion rules.
-The dashboard's Plays/Minutes display preference does not change certification
-eligibility. A separate minutes-based certification scheme is not implemented yet.
+The dashboard’s Plays/Minutes display preference does not change certification
+eligibility. Use the Plays / Listening time switch on track pages, artist pages,
+and in Hall of Fame to choose which awards to show.
+
+Time awards use exact seconds from the current stored track duration for each
+recorded listen. Gold requires 500 estimated minutes and Platinum requires 1,000.
+Diamond starts at 2,500 minutes and adds a multiplier every 2,500 minutes after
+that. Each award keeps its crossing date. A listen without a known positive track duration adds
+no estimated time. Duration corrections, imports and deletions can change totals
+and dates. These metrics estimate time from scrobbles rather than measuring
+actual playback time.
 
 General dashboard milestones remain available, with all-time play/hour targets,
 progress, and dates/times for reached targets. Hide/show this section in Settings →
@@ -55,8 +64,8 @@ The combined artist/song listing is documented in [HALL_OF_FAME.md](HALL_OF_FAME
 
 Read-only APIs, protected by the existing login gate:
 
-- `GET /apis/web/v1/track/{id}/certifications`
-- `GET /apis/web/v1/artist/{id}/certifications`
+- `GET /apis/web/v1/track/{id}/certifications` (add `?metric=time` for time awards)
+- `GET /apis/web/v1/artist/{id}/certifications` (add `?metric=time` for time awards)
 - `GET /apis/web/v1/milestones`
 
 No database migration is needed. Calculations stream the relevant listens; runtime
