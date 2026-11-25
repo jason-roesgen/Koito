@@ -300,7 +300,10 @@ func GenerateRandomString(length int) (string, error) {
 
 // Essentially the same as utils.WriteError(w, `{"error": "message"}`, code)
 func WriteError(w http.ResponseWriter, message string, code int) {
-	http.Error(w, fmt.Sprintf(`{"error":"%s"}`, message), code)
+	if code >= 500 {
+		message = http.StatusText(code)
+	}
+	WriteJSON(w, code, map[string]string{"error": message})
 }
 
 // Sets content type and status code, and encodes data to json

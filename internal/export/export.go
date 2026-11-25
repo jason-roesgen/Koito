@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gabehf/koito/internal/db"
@@ -61,7 +63,11 @@ func ExportData(ctx context.Context, user *models.User, store db.ExportStore, ou
 	// defer f.Close()
 
 	// Write the opening of the JSON manually
-	_, err := fmt.Fprintf(out, "{\n  \"version\": \"1\",\n  \"exported_at\": \"%s\",\n  \"user\": \"%s\",\n  \"listens\": [\n", exportedAt.UTC().Format(time.RFC3339), user.Username)
+	username, err := json.Marshal(user.Username)
+	if err != nil {
+		return fmt.Errorf("ExportData: marshal username: %w", err)
+	}
+	_, err = fmt.Fprintf(out, "{\n  \"version\": \"1\",\n  \"exported_at\": \"%s\",\n  \"user\": %s,\n  \"listens\": [\n", exportedAt.UTC().Format(time.RFC3339), username)
 	if err != nil {
 		return fmt.Errorf("ExportData: %w", err)
 	}
@@ -84,7 +90,9 @@ func ExportData(ctx context.Context, user *models.User, store db.ExportStore, ou
 		for _, r := range rows {
 			// Adds a comma after each listen item
 			if !first {
-				_, _ = out.Write([]byte(",\n"))
+				if _, err := io.WriteString(out, ",\n"); err != nil {
+					return fmt.Errorf("ExportData: %w", err)
+				}
 			}
 			first = false
 
@@ -92,21 +100,15 @@ func ExportData(ctx context.Context, user *models.User, store db.ExportStore, ou
 
 			raw, err := json.MarshalIndent(exported, "    ", "  ")
 
-			// needed to make the listen item start at the right indent level
-			out.Write([]byte("    "))
-
 			if err != nil {
 				return fmt.Errorf("ExportData: marshal: %w", err)
 			}
-			_, _ = out.Write(raw)
-
-			if r.TrackID > lastTrackId {
-				lastTrackId = r.TrackID
-			}
-			if r.ListenedAt.After(lastTime) {
-				lastTime = r.ListenedAt
+			if _, err := out.Write(append([]byte("    "), raw...)); err != nil {
+				return fmt.Errorf("ExportData: %w", err)
 			}
 		}
+		last := rows[len(rows)-1]
+		lastTime, lastTrackId = last.ListenedAt, last.TrackID
 	}
 
 	// Write closing of the JSON array and object
@@ -134,7 +136,7 @@ func convertToExportFormat(item *db.ExportItem) *KoitoListen {
 		Client: client,
 		Album: KoitoAlbum{
 			MBID:           item.ReleaseMbid,
-			ImageUrl:       item.ReleaseImageSource,
+			ImageUrl:       exportImageSource(item.ReleaseImageSource),
 			VariousArtists: item.VariousArtists,
 			Aliases:        item.ReleaseAliases,
 		},
@@ -144,8 +146,29 @@ func convertToExportFormat(item *db.ExportItem) *KoitoListen {
 			IsPrimary: item.Artists[i].IsPrimary,
 			MBID:      item.Artists[i].MbzID,
 			Aliases:   item.Artists[i].Aliases,
-			ImageUrl:  item.Artists[i].ImageSource,
+			ImageUrl:  exportImageSource(item.Artists[i].ImageSource),
 		})
 	}
 	return ret
+}
+
+func exportImageSource(source string) string {
+	u, err := url.Parse(source)
+	if err != nil || u.User != nil {
+		return ""
+	}
+	if u.Scheme == "http" || u.Scheme == "https" {
+		if strings.HasSuffix(strings.TrimSuffix(u.Path, ".view"), "/rest/getCoverArt") {
+			if id := u.Query().Get("id"); id != "" {
+				return "subsonic:" + id
+			}
+			return ""
+		}
+		for _, key := range []string{"u", "p", "t", "s", "api_key", "token"} {
+			if u.Query().Has(key) {
+				return ""
+			}
+		}
+	}
+	return source
 }

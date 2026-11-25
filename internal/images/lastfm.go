@@ -50,7 +50,7 @@ type lastFMArtistResponse struct {
 }
 
 const (
-	lastFMApiBaseUrl = "http://ws.audioscrobbler.com/2.0/"
+	lastFMApiBaseUrl = "https://ws.audioscrobbler.com/2.0/"
 )
 
 func NewLastFMClient() *LastFMClient {
@@ -63,15 +63,13 @@ func NewLastFMClient() *LastFMClient {
 }
 
 func (c *LastFMClient) queue(ctx context.Context, req *http.Request) ([]byte, error) {
-	l := logger.FromContext(ctx)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Accept", "application/json")
 
 	resultChan := c.requestQueue.Enqueue(func(client *http.Client, done chan<- queue.RequestResult) {
 		resp, err := client.Do(req)
 		if err != nil {
-			l.Debug().Err(err).Str("url", req.URL.String()).Msg("Failed to contact LastFM")
-			done <- queue.RequestResult{Err: err}
+			done <- queue.RequestResult{Err: fmt.Errorf("failed to contact LastFM")}
 			return
 		}
 		defer resp.Body.Close()
@@ -104,7 +102,7 @@ func (c *LastFMClient) getEntity(ctx context.Context, params url.Values, result 
 	reqUrl, _ := url.Parse(c.baseUrl)
 	reqUrl.RawQuery = params.Encode()
 
-	l.Debug().Msgf("Sending request to LastFM: GET %s", reqUrl.String())
+	l.Debug().Msg("Sending request to LastFM")
 
 	req, err := http.NewRequest("GET", reqUrl.String(), nil)
 	if err != nil {

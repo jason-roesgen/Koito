@@ -106,7 +106,7 @@ func FetchMissingArtistImages(ctx context.Context, store db.ArtistStore) error {
 					Str("name", artist.Name).
 					Msg("FetchMissingArtistImages: Successfully fetched missing artist image")
 			} else {
-				l.Err(err).
+				l.Err(imgErr).
 					Str("name", artist.Name).
 					Msg("FetchMissingArtistImages: Failed to fetch artist image")
 			}
@@ -165,7 +165,7 @@ func FetchMissingAlbumImages(ctx context.Context, store db.AlbumStore) error {
 					Str("name", album.Title).
 					Msg("FetchMissingAlbumImages: Successfully fetched missing album image")
 			} else {
-				l.Err(err).
+				l.Err(imgErr).
 					Str("name", album.Title).
 					Msg("FetchMissingAlbumImages: Failed to fetch album image")
 			}

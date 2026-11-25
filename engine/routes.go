@@ -32,12 +32,22 @@ func bindRoutes(
 			AllowedMethods: []string{"GET", "OPTIONS", "HEAD"},
 		}))
 	}
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			next.ServeHTTP(w, r)
+		})
+	})
 	r.Use(chimiddleware.GetHead)
 
 	r.With(chimiddleware.RequestSize(5<<20)).
 		Get("/image/{image_id}/{filename}", handlers.ImageHandler(db))
 
 	r.Route("/apis/web/v1", func(r chi.Router) {
+		r.Use(http.NewCrossOriginProtection().Handler)
+		r.Use(chimiddleware.RequestSize(10 << 20))
 		r.Get("/config", handlers.GetCfgHandler())
 
 		r.Group(func(r chi.Router) {
@@ -78,6 +88,7 @@ func bindRoutes(
 			r.With(httprate.Limit(
 				10,
 				time.Minute,
+				httprate.WithKeyFuncs(httprate.KeyByIP),
 				httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, `{"error":"too many requests"}`, http.StatusTooManyRequests)
 				}),
@@ -95,7 +106,7 @@ func bindRoutes(
 		})
 
 		r.Group(func(r chi.Router) {
-			r.Use(middleware.Authenticate(db, middleware.AuthModeSessionOrAPIKey))
+			r.Use(middleware.Authenticate(db, middleware.AuthModeSessionCookie))
 
 			r.Delete("/artist/{id}", handlers.DeleteArtistHandler(db))
 			r.Delete("/artist/{id}/aliases", handlers.DeleteArtistAliasHandler(db))
@@ -146,7 +157,7 @@ func bindRoutes(
 			AllowedHeaders: []string{"Content-Type", "Authorization"},
 		}))
 
-		r.With(middleware.Authenticate(db, middleware.AuthModeAPIKey)).
+		r.With(chimiddleware.RequestSize(5<<20), middleware.Authenticate(db, middleware.AuthModeAPIKey)).
 			Post("/submit-listens", handlers.LbzSubmitListenHandler(db, mbz))
 		r.With(middleware.Authenticate(db, middleware.AuthModeAPIKey)).
 			Get("/validate-token", handlers.LbzValidateTokenHandler())

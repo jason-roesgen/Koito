@@ -38,6 +38,6 @@ func ResetPassword(getenv func(string) string, w io.Writer, version string) erro
 		return fmt.Errorf("ResetPassword: failed to update password: %w", err)
 	}
 
-	l.Info().Msgf("Password for '%s' has been reset. New password: %s", user.Username, newPassword)
-	return nil
+	_, err = fmt.Fprintf(w, "New password for %s: %s\n", user.Username, newPassword)
+	return err
 }

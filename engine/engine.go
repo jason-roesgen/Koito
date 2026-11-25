@@ -120,12 +120,23 @@ func Run(
 	defer store.Close(ctx)
 
 	l.Debug().Msg("Engine: Checking for default user")
-	userCount, _ := store.CountUsers(ctx)
+	userCount, err := store.CountUsers(ctx)
+	if err != nil {
+		return fmt.Errorf("count users: %w", err)
+	}
 	if userCount < 1 {
 		l.Info().Msg("Engine: Creating default user")
+		password := cfg.DefaultPassword()
+		if password == "" {
+			password, err = utils.GenerateRandomString(32)
+			if err != nil {
+				return fmt.Errorf("generate initial password: %w", err)
+			}
+			l.Info().Msg("Use the reset-password command to obtain your initial login password.")
+		}
 		user, err := store.SaveUser(ctx, db.SaveUserOpts{
 			Username: cfg.DefaultUsername(),
-			Password: cfg.DefaultPassword(),
+			Password: password,
 			Role:     models.UserRoleAdmin,
 		})
 		if err != nil {
@@ -144,7 +155,7 @@ func Run(
 		if err != nil {
 			l.Fatal().Err(err).Msg("Engine: Failed to save default API key in database")
 		}
-		l.Info().Msgf("Engine: Default user created. Login: %s : %s", cfg.DefaultUsername(), cfg.DefaultPassword())
+		l.Info().Msg("Engine: Initial user created")
 	}
 
 	if cfg.ForceTZ() != nil {
@@ -165,20 +176,30 @@ func Run(
 		l.Debug().Msg("Engine: Checking Subsonic configuration")
 		pingURL := cfg.SubsonicUrl() + "/rest/ping.view?" + cfg.SubsonicParams() + "&f=json&v=1&c=koito"
 
-		resp, err := http.Get(pingURL)
+		client := &http.Client{
+			Timeout: 10 * time.Second,
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+		resp, err := client.Get(pingURL)
 		if err != nil {
-			l.Fatal().Err(err).Msg("Engine: Failed to contact Subsonic server! Ensure the provided URL is correct")
+			l.Fatal().Msg("Engine: Failed to contact Subsonic server! Ensure the provided URL is correct")
 		} else {
-			defer resp.Body.Close()
-
 			var result struct {
 				Response struct {
 					Status string `json:"status"`
 				} `json:"subsonic-response"`
 			}
 
-			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-				l.Fatal().Err(err).Msg("Engine: Failed to parse Subsonic response")
+			if resp.StatusCode != http.StatusOK {
+				resp.Body.Close()
+				l.Fatal().Int("status", resp.StatusCode).Msg("Engine: Subsonic ping returned an unexpected status")
+			}
+			err := json.NewDecoder(resp.Body).Decode(&result)
+			resp.Body.Close()
+			if err != nil {
+				l.Fatal().Msg("Engine: Failed to parse Subsonic response")
 			} else if result.Response.Status != "ok" {
 				l.Fatal().Msg("Engine: Provided Subsonic credentials are invalid")
 			} else {
@@ -218,12 +239,15 @@ func Run(
 	mux.Use(middleware.WithRequestID)
 	mux.Use(middleware.Logger(l))
 	mux.Use(chimiddleware.Recoverer)
-	mux.Use(chimiddleware.RealIP)
 	bindRoutes(mux, &ready, store, mbzC)
 
 	httpServer := &http.Server{
-		Addr:    cfg.ListenAddr(),
-		Handler: mux,
+		Addr:              cfg.ListenAddr(),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      2 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
 	}
 
 	go func() {

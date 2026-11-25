@@ -96,7 +96,7 @@ type UserStore interface {
 	UpdateApiKeyLabel(ctx context.Context, opts UpdateApiKeyLabelOpts) error
 	RefreshSession(ctx context.Context, sessionId uuid.UUID, expiresAt time.Time) error
 	DeleteSession(ctx context.Context, sessionId uuid.UUID) error
-	DeleteApiKey(ctx context.Context, id int32) error
+	DeleteApiKey(ctx context.Context, id, userID int32) error
 	CountUsers(ctx context.Context) (int64, error)
 }
 

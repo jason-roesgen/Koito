@@ -206,13 +206,10 @@ function deleteItem(itemType: string, id: number): Promise<Response> {
     method: "DELETE",
   });
 }
-function updateUser(username: string, password: string) {
-  const form = new URLSearchParams();
-  form.append("username", username);
-  form.append("password", password);
+function updateUser(username: string, password: string, currentPassword: string) {
   return fetch(`/apis/web/v1/user`, {
     method: "PATCH",
-    body: JSON.stringify({ username: username, password: password }),
+    body: JSON.stringify({ username, password, current_password: currentPassword }),
     headers: {
       "Content-Type": "application/json",
     },

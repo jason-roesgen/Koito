@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gabehf/koito/internal/cfg"
 	"github.com/gabehf/koito/internal/db"
@@ -99,7 +98,7 @@ func validateSession(ctx context.Context, store db.UserStore, r *http.Request) (
 			return nil, errors.New("session cookie is invalid")
 		}
 	} else {
-		l.Debug().Msgf("ValidateSession: No session cookie found; attempting API key authentication")
+		l.Debug().Msg("ValidateSession: No session cookie found")
 		return nil, errors.New("session cookie is missing")
 	}
 
@@ -114,15 +113,6 @@ func validateSession(ctx context.Context, store db.UserStore, r *http.Request) (
 		l.Debug().Msg("ValidateSession: No user with session id found")
 		return nil, errors.New("no user with session id found")
 	}
-
-	ctx = context.WithValue(r.Context(), UserContextKey, u)
-	r = r.WithContext(ctx)
-
-	l.Debug().Msgf("ValidateSession: Refreshing session for user '%s'", u.Username)
-
-	store.RefreshSession(r.Context(), sid, time.Now().Add(30*24*time.Hour))
-
-	l.Debug().Msgf("ValidateSession: Refreshed session for user '%s'", u.Username)
 
 	return u, nil
 }
