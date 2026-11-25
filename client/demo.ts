@@ -1,7 +1,7 @@
 import { demoHallOfFame } from "./app/utils/hallOfFame";
 import type { Plugin } from "vite";
 import type { Album, Artist, Track, ImageList } from "./api/api";
-import type { Certification, TrackCertifications, MilestoneHistory } from "./api/certifications";
+import type { Certification, CertificationMetric, TrackCertifications, MilestoneHistory } from "./api/certifications";
 import { minuteMilestones, playMilestones } from "./app/utils/milestones";
 
 // In-memory fixtures used only by the explicitly enabled Vite development server.
@@ -103,8 +103,26 @@ export function demoDataPlugin(): Plugin {
     const tier = threshold % 1000 === 0 ? "diamond" : threshold % 400 === 0 ? "platinum" : "gold";
     return { tier, multiple: threshold / (tier === "diamond" ? 1000 : tier === "platinum" ? 400 : 200), plays: threshold, reached_at: time };
   }
-  function trackCertifications(track: Track): TrackCertifications {
+  function trackCertifications(track: Track, metric: CertificationMetric): TrackCertifications {
     const listens = history.filter(listen => listen.track.id === track.id).sort((a, b) => a.time.localeCompare(b.time));
+    if (metric === "time") {
+      const length = duration(track);
+      const seconds = listens.length * length;
+      const diamondStep = 2500 * 60;
+      const targets = ([["gold", 500], ["platinum", 1000]] as const)
+        .map(([tier, minutes]) => ({ tier, multiple: 1, plays: 0, seconds: minutes * 60 }));
+      const diamonds = Array.from({ length: Math.floor(seconds / diamondStep) + 1 }, (_, i) => ({
+        tier: "diamond" as const, multiple: i + 1, plays: 0, seconds: (i + 1) * diamondStep,
+      }));
+      const ladder = [...targets, ...diamonds];
+      const awards = ladder.filter(target => seconds >= target.seconds).map(target => ({
+        ...target, reached_at: listens[Math.ceil(target.seconds / length) - 1].time,
+      }));
+      return {
+        track_id: track.id, title: track.title, plays: listens.length, seconds,
+        current: awards.at(-1) ?? null, next: ladder[awards.length], history: awards,
+      };
+    }
     const awards = listens.flatMap((listen, index) => (index + 1) % 200 === 0 ? [awardAt(index + 1, listen.time)] : []);
     return { track_id: track.id, title: track.title, plays: listens.length, current: awards.at(-1) ?? null, next: awardAt((Math.floor(listens.length / 200) + 1) * 200), history: awards };
   }
@@ -130,10 +148,11 @@ export function demoDataPlugin(): Plugin {
         if (req.method !== "GET") return send({ error: "Synthetic demo is read-only. Disable demo mode to edit local data." }, 403);
         const path = url.pathname.slice("/apis/web/v1/".length), p = url.searchParams;
         const rows = select(p);
+        const metric = p.get("metric") === "time" ? "time" : "plays";
         if (path === "hall-of-fame") {
           const songs = tracks.flatMap(track => {
-            const certificate = trackCertifications(track);
-            return certificate.current ? [{ track_id: track.id, title: track.title, artists: track.artists.map(a => ({ ...a, image: artists.find(artist => artist.id === a.id)!.image })), image: track.image, plays: certificate.plays, current: certificate.current }] : [];
+            const certificate = trackCertifications(track, metric);
+            return certificate.current ? [{ track_id: track.id, title: track.title, artists: track.artists.map(a => ({ ...a, image: artists.find(artist => artist.id === a.id)!.image })), image: track.image, plays: certificate.plays, seconds: certificate.seconds, current: certificate.current }] : [];
           });
           return send(demoHallOfFame(songs, p));
         }
@@ -144,10 +163,10 @@ export function demoDataPlugin(): Plugin {
           if (!Number.isInteger(id) || id <= 0 || id > 2147483647) return send({ error: "invalid ID" }, 400);
           if (certification[1] === "track") {
             const track = tracks.find(track => track.id === id);
-            return track ? send(trackCertifications(track)) : send({ error: "item not found" }, 404);
+            return track ? send(trackCertifications(track, metric)) : send({ error: "item not found" }, 404);
           }
           if (!artists.some(artist => artist.id === id)) return send({ error: "item not found" }, 404);
-          const certified = tracks.filter(track => track.artists.some(artist => artist.id === id)).map(trackCertifications).filter(track => track.current !== null);
+          const certified = tracks.filter(track => track.artists.some(artist => artist.id === id)).map(track => trackCertifications(track, metric)).filter(track => track.current !== null);
           const counts = { gold: 0, platinum: 0, diamond: 0 };
           certified.forEach(track => { if (track.current) counts[track.current.tier]++; });
           return send({ counts, tracks: certified });

@@ -36,7 +36,7 @@ func TestCertificationHistory(t *testing.T) {
 		exec("INSERT INTO listens(track_id,listened_at,user_id) VALUES(2,?,1)", 1000+play)
 	}
 	exec("INSERT INTO listens(track_id,listened_at,user_id) VALUES(1,?,1)", time.Now().AddDate(1, 0, 0).Unix())
-	track, err := s.GetTrackCertifications(ctx, 1)
+	track, err := s.GetTrackCertifications(ctx, 1, db.CertificationPlays)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestCertificationHistory(t *testing.T) {
 		t.Fatalf("incorrect track: %+v", track)
 	}
 	for _, id := range []int32{1, 2} {
-		board, err := s.GetArtistCertifications(ctx, id)
+		board, err := s.GetArtistCertifications(ctx, id, db.CertificationPlays)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -52,17 +52,17 @@ func TestCertificationHistory(t *testing.T) {
 			t.Fatalf("incorrect credit for artist %d: %+v", id, board)
 		}
 	}
-	empty, err := s.GetTrackCertifications(ctx, 3)
+	empty, err := s.GetTrackCertifications(ctx, 3, db.CertificationPlays)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if empty.Plays != 0 || empty.Current != nil || len(empty.History) != 0 || empty.Next.Plays != 200 {
 		t.Fatal("incorrect empty history")
 	}
-	if _, err := s.GetTrackCertifications(ctx, 99); !errors.Is(err, db.ErrNotFound) {
+	if _, err := s.GetTrackCertifications(ctx, 99, db.CertificationPlays); !errors.Is(err, db.ErrNotFound) {
 		t.Fatal("missing track should return not found")
 	}
-	if _, err := s.GetArtistCertifications(ctx, 99); !errors.Is(err, db.ErrNotFound) {
+	if _, err := s.GetArtistCertifications(ctx, 99, db.CertificationPlays); !errors.Is(err, db.ErrNotFound) {
 		t.Fatal("missing artist should return not found")
 	}
 	history, err := s.GetMilestoneHistory(ctx)
@@ -74,7 +74,7 @@ func TestCertificationHistory(t *testing.T) {
 	}
 	// A correction is reflected immediately rather than leaving a stale award.
 	exec("DELETE FROM listens WHERE track_id=1 AND listened_at BETWEEN 2001 AND 2200")
-	corrected, err := s.GetTrackCertifications(ctx, 1)
+	corrected, err := s.GetTrackCertifications(ctx, 1, db.CertificationPlays)
 	if err != nil {
 		t.Fatal(err)
 	}

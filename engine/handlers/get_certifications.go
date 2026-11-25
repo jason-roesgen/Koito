@@ -23,10 +23,15 @@ func GetCertificationsHandler(store db.CertificationStore, kind string) http.Han
 				utils.WriteError(w, "invalid ID", http.StatusBadRequest)
 				return
 			}
+			metric := r.URL.Query().Get("metric")
+			if metric != "" && metric != db.CertificationPlays && metric != db.CertificationTime {
+				utils.WriteError(w, "invalid certification metric", http.StatusBadRequest)
+				return
+			}
 			if kind == "track" {
-				result, err = store.GetTrackCertifications(r.Context(), int32(id))
+				result, err = store.GetTrackCertifications(r.Context(), int32(id), metric)
 			} else {
-				result, err = store.GetArtistCertifications(r.Context(), int32(id))
+				result, err = store.GetArtistCertifications(r.Context(), int32(id), metric)
 			}
 		}
 		if errors.Is(err, db.ErrNotFound) {

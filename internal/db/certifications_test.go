@@ -37,3 +37,44 @@ func TestCertificationLadder(t *testing.T) {
 		t.Fatalf("incorrect history: %+v", track)
 	}
 }
+
+func TestListeningTimeCertificationThresholds(t *testing.T) {
+	track := NewTrackTimeCertifications(1, "song")
+	goldAt := time.Unix(2, 0)
+	platinumAt := time.Unix(4, 0)
+	diamondAt := time.Unix(5, 0)
+	doubleAt := time.Unix(7, 0)
+	tripleAt := time.Unix(8, 0)
+	track.AddTimedListen(time.Unix(1, 0), 29999)
+	if track.Current != nil || track.Next.Seconds != 30000 {
+		t.Fatal("a play just below Gold earned an award")
+	}
+	track.AddTimedListen(goldAt, 1)
+	track.AddTimedListen(time.Unix(3, 0), -1)
+	track.AddTimedListen(platinumAt, 30000)
+	track.AddTimedListen(diamondAt, 90000)
+	track.AddTimedListen(time.Unix(6, 0), 149999)
+	if track.Current.Multiple != 1 || track.Next.Seconds != 300000 {
+		t.Fatal("2× Diamond must require all 5,000 minutes")
+	}
+	track.AddTimedListen(doubleAt, 1)
+	track.AddTimedListen(tripleAt, 150000)
+
+	if track.Seconds != 450000 || track.Plays != 8 || track.Next == nil ||
+		track.Next.Seconds != 600000 || track.Next.Multiple != 4 || len(track.History) != 5 {
+		t.Fatalf("unexpected time progress: %+v", track)
+	}
+	for i, want := range []struct {
+		tier     string
+		multiple int64
+		at       time.Time
+	}{{"gold", 1, goldAt}, {"platinum", 1, platinumAt}, {"diamond", 1, diamondAt}, {"diamond", 2, doubleAt}, {"diamond", 3, tripleAt}} {
+		got := track.History[i]
+		if got.Tier != want.tier || got.Multiple != want.multiple || !got.ReachedAt.Equal(want.at) {
+			t.Fatalf("threshold %d: got %+v", i, got)
+		}
+	}
+	if track.Current.Tier != "diamond" || track.Current.Multiple != 3 || !track.Current.ReachedAt.Equal(tripleAt) {
+		t.Fatal("3× Diamond should become the current award")
+	}
+}

@@ -1,15 +1,19 @@
+export type CertificationMetric = "plays" | "time";
+
 export type Certification = {
   tier: "gold" | "platinum" | "diamond";
   multiple: number;
   plays: number;
   reached_at: string;
+  seconds?: number;
 };
 export type TrackCertifications = {
   track_id: number;
   title: string;
   plays: number;
   current: Certification | null;
-  next: Pick<Certification, "tier" | "multiple" | "plays">;
+  next: Omit<Certification, "reached_at"> | null;
+  seconds?: number;
   history: Certification[];
 };
 export type ArtistCertifications = {
@@ -31,7 +35,7 @@ export function certificationLabel(award: Pick<Certification, "tier" | "multiple
 export type HallCredit = { id: number; name: string; image: import("./api").ImageList };
 export type HallSong = {
   track_id: number; title: string; artists: HallCredit[];
-  image: import("./api").ImageList; plays: number; current: Certification;
+  image: import("./api").ImageList; plays: number; seconds?: number; current: Certification;
 };
 export type HallArtist = HallCredit & {
   counts: Record<Certification["tier"], number>;
@@ -44,3 +48,11 @@ export type HallOfFame = {
   total_record_count: number; current_page: number; items_per_page: number;
   has_next_page: boolean;
 };
+
+export function certificationTotal(value: { plays: number; seconds?: number }, metric: CertificationMetric) {
+  if (metric === "plays") return `${value.plays.toLocaleString()} plays`;
+  const seconds = value.seconds ?? 0;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder ? `${minutes.toLocaleString()} min ${remainder} sec` : `${minutes.toLocaleString()} min`;
+}

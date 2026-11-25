@@ -28,6 +28,7 @@ export function demoHallOfFame(
     }
   }
   const view = params.get("view") || "artists";
+  const byTime = params.get("metric") === "time";
   const tier = params.get("tier") as keyof typeof counts | null;
   const q = (params.get("q") || "").trim().toLowerCase();
   const sort = params.get("sort") || "count",
@@ -57,12 +58,12 @@ export function demoHallOfFame(
         ? a.title.toLowerCase()
         : sort === "date"
           ? a.current.reached_at
-          : a.plays,
+          : byTime ? a.seconds ?? 0 : a.plays,
       sort === "name"
         ? b.title.toLowerCase()
         : sort === "date"
           ? b.current.reached_at
-          : b.plays,
+          : byTime ? b.seconds ?? 0 : b.plays,
       a.track_id,
       b.track_id,
     ),
