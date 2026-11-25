@@ -62,7 +62,7 @@ func ImportKoitoFile(ctx context.Context, store importStore, filename string) er
 				var imgid = uuid.Nil
 				// not a perfect way to check if the image url is an actual source vs manual upload but
 				// im like 99% sure it will work perfectly
-				if strings.HasPrefix(ia.ImageUrl, "http") {
+				if strings.HasPrefix(ia.ImageUrl, "http") || strings.HasPrefix(ia.ImageUrl, "subsonic:") {
 					imgid = uuid.New()
 				}
 				// save artist
@@ -98,7 +98,7 @@ func ImportKoitoFile(ctx context.Context, store importStore, filename string) er
 			var imgid = uuid.Nil
 			// not a perfect way to check if the image url is an actual source vs manual upload but
 			// im like 99% sure it will work perfectly
-			if strings.HasPrefix(data.Listens[i].Album.ImageUrl, "http") {
+			if strings.HasPrefix(data.Listens[i].Album.ImageUrl, "http") || strings.HasPrefix(data.Listens[i].Album.ImageUrl, "subsonic:") {
 				imgid = uuid.New()
 			}
 			// save album

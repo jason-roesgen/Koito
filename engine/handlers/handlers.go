@@ -27,8 +27,8 @@ func OptsFromRequest(r *http.Request) db.GetItemsOpts {
 		l.Debug().Msgf("OptsFromRequest: Query parameter 'limit' not specified, using default %d", defaultLimitSize)
 		limit = defaultLimitSize
 	}
-	if limit > maximumLimit {
-		l.Debug().Msgf("OptsFromRequest: Limit exceeds maximum %d, using default %d", maximumLimit, defaultLimitSize)
+	if limit < 1 || limit > maximumLimit {
+		l.Debug().Msgf("OptsFromRequest: Limit outside 1–%d, using default %d", maximumLimit, defaultLimitSize)
 		limit = defaultLimitSize
 	}
 

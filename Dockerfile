@@ -8,13 +8,13 @@ WORKDIR /client
 RUN npm install -g corepack
 RUN corepack enable && corepack prepare yarn@4 --activate
 COPY ./client .
-RUN yarn install
+RUN yarn install --immutable
 
 RUN yarn run build
 
 RUN find ./build/client -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -name "*.svg" \) -exec gzip -k -9 {} \;
 
-FROM golang:1.25 AS backend
+FROM golang:1.27-bookworm AS backend
 
 ARG KOITO_VERSION
 ENV CGO_ENABLED=1

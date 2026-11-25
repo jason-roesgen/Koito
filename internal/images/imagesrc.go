@@ -77,7 +77,7 @@ func GetArtistImage(ctx context.Context, opts ArtistImageOpts) (string, error) {
 		l.Warn().Msg("GetArtistImage: No image providers are enabled")
 		return "", nil
 	}
-	if imgsrc.subsonicEnabled {
+	if imgsrc.subsonicEnabled && len(opts.Aliases) > 0 {
 		img, err := imgsrc.subsonicC.GetArtistImage(ctx, opts.MBID, opts.Aliases[0])
 		if err != nil {
 			l.Debug().Err(err).Msg("GetArtistImage: Could not find artist image from Subsonic")
@@ -97,7 +97,7 @@ func GetArtistImage(ctx context.Context, opts ArtistImageOpts) (string, error) {
 	} else {
 		l.Debug().Msg("GetArtistImage: Deezer image fetching is disabled")
 	}
-	if imgsrc.lastfmEnabled {
+	if imgsrc.lastfmEnabled && len(opts.Aliases) > 0 {
 		img, err := imgsrc.lastfmC.GetArtistImage(ctx, opts.MBID, opts.Aliases[0])
 		if err != nil {
 			l.Debug().Err(err).Msg("GetArtistImage: Could not find artist image from LastFM")
@@ -112,7 +112,7 @@ func GetArtistImage(ctx context.Context, opts ArtistImageOpts) (string, error) {
 
 func GetAlbumImage(ctx context.Context, opts AlbumImageOpts) (string, error) {
 	l := logger.FromContext(ctx)
-	if imgsrc.subsonicEnabled {
+	if imgsrc.subsonicEnabled && len(opts.Artists) > 0 {
 		img, err := imgsrc.subsonicC.GetAlbumImage(ctx, opts.ReleaseMbzID, opts.Artists[0], opts.Album)
 		if err != nil {
 			l.Debug().Err(err).Msg("GetAlbumImage: Could not find artist image from Subsonic")
@@ -126,10 +126,11 @@ func GetAlbumImage(ctx context.Context, opts AlbumImageOpts) (string, error) {
 		l.Debug().Msg("Attempting to find album image from CoverArtArchive")
 		if opts.ReleaseMbzID != nil && *opts.ReleaseMbzID != uuid.Nil {
 			url := fmt.Sprintf(caaBaseUrl+"/release/%s/front", opts.ReleaseMbzID.String())
-			resp, err := http.DefaultClient.Head(url)
+			resp, err := FetchImage(http.MethodHead, url, false)
 			if err != nil {
 				l.Debug().Err(err).Msg("GetAlbumImage: Could not find artist image from CoverArtArchive with Release MBID")
 			} else {
+				resp.Body.Close()
 				if resp.StatusCode == 200 {
 					return url, nil
 				} else {
@@ -139,16 +140,18 @@ func GetAlbumImage(ctx context.Context, opts AlbumImageOpts) (string, error) {
 		}
 		if opts.ReleaseGroupMbzID != nil && *opts.ReleaseGroupMbzID != uuid.Nil {
 			url := fmt.Sprintf(caaBaseUrl+"/release-group/%s/front", opts.ReleaseGroupMbzID.String())
-			resp, err := http.DefaultClient.Head(url)
+			resp, err := FetchImage(http.MethodHead, url, false)
 			if err != nil {
 				l.Debug().Err(err).Msg("GetAlbumImage: Could not find artist image from CoverArtArchive with Release Group MBID")
-			}
-			if resp.StatusCode == 200 {
-				return url, nil
+			} else {
+				resp.Body.Close()
+				if resp.StatusCode == 200 {
+					return url, nil
+				}
 			}
 		}
 	}
-	if imgsrc.lastfmEnabled {
+	if imgsrc.lastfmEnabled && len(opts.Artists) > 0 {
 		img, err := imgsrc.lastfmC.GetAlbumImage(ctx, opts.ReleaseMbzID, opts.Artists[0], opts.Album)
 		if err != nil {
 			l.Debug().Err(err).Msg("GetAlbumImage: Could not find artist image from Subsonic")
@@ -173,7 +176,7 @@ func GetAlbumImage(ctx context.Context, opts AlbumImageOpts) (string, error) {
 
 // ValidateImageURL checks if the URL points to a valid image by performing a HEAD request.
 func ValidateImageURL(url string) error {
-	resp, err := http.Head(url)
+	resp, err := FetchImage(http.MethodHead, url, true)
 	if err != nil {
 		return fmt.Errorf("ValidateImageURL: http.Head: %w", err)
 	}

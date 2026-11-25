@@ -14,6 +14,9 @@ import (
 func (s *Sqlite) SaveSession(ctx context.Context, userID int32, expiresAt time.Time, persistent bool) (*models.Session, error) {
 	id := uuid.New()
 	now := time.Now().Unix()
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM sessions WHERE expires_at <= ?", now); err != nil {
+		return nil, fmt.Errorf("prune expired sessions: %w", err)
+	}
 	persistentInt := 0
 	if persistent {
 		persistentInt = 1

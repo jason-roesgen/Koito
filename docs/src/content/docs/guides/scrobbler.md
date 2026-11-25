@@ -7,11 +7,11 @@ To use the ListenBrainz API, you need to get your generated API key from the UI.
 
 First, open the settings in your Koito instance by clicking on the settings icon or pressing `\`.
 
-Then, you can navigate to the account tab and log in using the default credentials `admin` and `changeme`, or the credentials you supplied when first running Koito using the `KOITO_DEFAULT_USERNAME` and `KOITO_DEFAULT_PASSWORD` environment variables.
+Then, you can navigate to the account tab and log in with the initial username (default `admin`) and the password supplied at setup. If you omitted the password, run `docker exec -it koito ./app reset-password` to obtain one. Enable `KOITO_LOGIN_GATE=true` to restrict listening statistics. Scrobbler keys authorize ListenBrainz and gated statistics. Account, export, and editing routes require a login session.
 
-:::caution
-Be sure to change the username and password after logging in for the first time if you used the defaults.
-:::
+Existing installations keep their credentials on upgrade. If you used the old default password, change it in Account settings. A password change asks for your current password and signs out your other sessions. The reset command signs out all sessions.
+
+Login attempts are limited by the address of the connection to Koito. When using a reverse proxy, clients behind it share that limit. If the proxy terminates HTTPS, configure it to add the `Secure` attribute to the `koito_session` cookie.
 
 After logging in, open the settings menu again and find the `API Keys` tab. On this tab, you will find the automatically generated API key.
 

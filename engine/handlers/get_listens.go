@@ -21,7 +21,7 @@ func GetListensHandler(store db.ListenStore) func(w http.ResponseWriter, r *http
 		listens, err := store.GetListensPaginated(ctx, opts)
 		if err != nil {
 			l.Err(err).Msg("GetListensHandler: Failed to retrieve listens")
-			utils.WriteError(w, "failed to get listens: "+err.Error(), http.StatusBadRequest)
+			utils.WriteError(w, "failed to get listens", http.StatusBadRequest)
 			return
 		}
 

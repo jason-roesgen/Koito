@@ -467,7 +467,7 @@ func TestLoginGate(t *testing.T) {
 	req.Header.Add("Authorization", "Token "+apikey)
 	resp, err := http.DefaultClient.Do(req)
 	assert.NoError(t, err)
-	assert.Equal(t, 204, resp.StatusCode)
+	assert.Equal(t, 401, resp.StatusCode)
 
 	req, err = http.NewRequest("GET", host()+"/apis/web/v1/artist/3", nil)
 	require.NoError(t, err)
@@ -655,8 +655,22 @@ func TestAuth(t *testing.T) {
 	s := resp.Cookies()[0].Value
 	require.NotEmpty(t, s)
 
+	require.Equal(t, http.SameSiteLaxMode, resp.Cookies()[0].SameSite)
+	login(t)
+	for _, tc := range []struct {
+		body   string
+		status int
+	}{
+		{`{"password":"another-password"}`, http.StatusForbidden},
+		{`{"current_password":"` + cfg.DefaultPassword() + `","password":"` + strings.Repeat("ø", 37) + `"}`, http.StatusBadRequest},
+	} {
+		result, err := makeAuthRequest(t, s, "PATCH", "/apis/web/v1/user", strings.NewReader(tc.body))
+		require.NoError(t, err)
+		result.Body.Close()
+		require.Equal(t, tc.status, result.StatusCode)
+	}
 	// test update user
-	req, err := http.NewRequest("PATCH", host()+"/apis/web/v1/user", strings.NewReader(`{"username":"new","password":"supersecret"}`))
+	req, err := http.NewRequest("PATCH", host()+"/apis/web/v1/user", strings.NewReader(`{"username":"new","password":"supersecret","current_password":"`+cfg.DefaultPassword()+`"}`))
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
 		Name:  "koito_session",
@@ -665,6 +679,11 @@ func TestAuth(t *testing.T) {
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	require.Equal(t, 204, resp.StatusCode)
+
+	revoked, err := makeAuthRequest(t, session, "GET", "/apis/web/v1/user", nil)
+	require.NoError(t, err)
+	revoked.Body.Close()
+	require.Equal(t, http.StatusUnauthorized, revoked.StatusCode)
 
 	// test /user with updated info
 	req, err = http.NewRequest("GET", host()+"/apis/web/v1/user", nil)
@@ -689,7 +708,7 @@ func TestAuth(t *testing.T) {
 	require.Equal(t, 401, resp.StatusCode)
 
 	// reset update so other tests dont fail
-	req, err = http.NewRequest("PATCH", host()+"/apis/web/v1/user", strings.NewReader(`{"username":"`+cfg.DefaultUsername()+`","password":"`+cfg.DefaultPassword()+`"}`))
+	req, err = http.NewRequest("PATCH", host()+"/apis/web/v1/user", strings.NewReader(`{"current_password":"supersecret","username":"`+cfg.DefaultUsername()+`","password":"`+cfg.DefaultPassword()+`"}`))
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
 		Name:  "koito_session",
@@ -731,7 +750,7 @@ func TestAuth(t *testing.T) {
 	assert.True(t, assert.ObjectsAreEqual(expected, actual))
 
 	// changes api key label
-	login(t) // i dont care about using the new session anymore
+	loginOnce = sync.Once{} // the earlier fixture session was revoked by the password change
 	resp, err = makeAuthRequest(t, s, "PATCH", "/apis/web/v1/user/apikeys/2", strings.NewReader(`{"label":"well tested"}`))
 	require.NoError(t, err)
 	assert.Equal(t, 204, resp.StatusCode)

@@ -7,6 +7,7 @@ import SubHeader from "../primitives/SubHeader";
 export default function Account() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -29,14 +30,14 @@ export default function Account() {
   const updateHandler = () => {
     setError("");
     setSuccess("");
-    if (password != "" && confirmPw === "") {
+    if (password !== confirmPw) {
       setError("confirm your new password before submitting");
       return;
     }
     setError("");
     setSuccess("");
     setLoading(true);
-    updateUser(username, password)
+    updateUser(username, password, currentPassword)
       .then((r) => {
         if (r.ok) {
           setSuccess("sucessfully updated user");
@@ -45,6 +46,7 @@ export default function Account() {
           }
           setUsername("");
           setPassword("");
+          setCurrentPassword("");
           setConfirmPw("");
         } else {
           r.json().then((r) => setError(r.error));
@@ -93,6 +95,9 @@ export default function Account() {
           onSubmit={(e) => e.preventDefault()}
           className="flex flex-col gap-4"
         >
+          <input aria-label="Current password" placeholder="Current password" type="password"
+            autoComplete="current-password" className="w-full fg bg rounded p-2"
+            value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
           <div className="flex gap-4">
             <input
               name="koito-update-password"

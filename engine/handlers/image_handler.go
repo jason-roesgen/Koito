@@ -64,24 +64,19 @@ func imageHandlerRedownload(w http.ResponseWriter, r *http.Request, l *zerolog.L
 		l.Debug().Err(err).Msgf("Failed to get image source for image '%s'", imgid.String())
 		w.WriteHeader(http.StatusInternalServerError)
 		return nil, err
-	} else {
-		_, err, _ = downloadGroup.Do(imgid.String(), func() (any, error) {
-			if err := imagecache.DownloadImage(imgid, src); err != nil {
-				l.Err(err).Msg("ImageHandler: Failed to redownload missing image")
-				imageSize, err := imagecache.ParseImageSize(filename)
-				if err != nil {
-					http.NotFound(w, r)
-					return nil, err
-				}
-				serveDefaultImage(w, imageSize)
-				return nil, err
-			}
-			return nil, nil
-		})
-		if err != nil {
-			// errors are already handled in the func
-			return nil, err
+	}
+	_, err, _ = downloadGroup.Do(imgid.String(), func() (any, error) {
+		return nil, imagecache.DownloadImage(imgid, src)
+	})
+	if err != nil {
+		l.Debug().Msg("ImageHandler: Failed to redownload missing image")
+		size, parseErr := imagecache.ParseImageSize(filename)
+		if parseErr != nil {
+			http.NotFound(w, r)
+		} else {
+			serveDefaultImage(w, size)
 		}
+		return nil, err
 	}
 
 	image, err := imagecache.GetImage(imgid, filename)
