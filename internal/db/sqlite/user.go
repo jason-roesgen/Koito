@@ -18,7 +18,7 @@ import (
 const (
 	maxUsernameLength = 32
 	minUsernameLength = 1
-	maxPasswordLength = 128
+	maxPasswordLength = 72
 	minPasswordLength = 8
 )
 
@@ -40,9 +40,8 @@ func validateAndNormalizePassword(password string) (string, error) {
 	if length < minPasswordLength {
 		return "", errors.New("password must be at least 8 characters long")
 	}
-	if length > maxPasswordLength {
-		runes := []rune(password)
-		password = string(runes[:maxPasswordLength])
+	if len(password) > maxPasswordLength {
+		return "", errors.New("password exceeds 72 bytes")
 	}
 	return password, nil
 }
@@ -156,6 +155,9 @@ func (s *Sqlite) UpdateUser(ctx context.Context, opts db.UpdateUserOpts) error {
 			`UPDATE users SET password = ? WHERE id = ?`, hash, opts.ID); err != nil {
 			return fmt.Errorf("UpdateUser: password: %w", err)
 		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ? AND id <> ?", opts.ID, opts.KeepSession); err != nil {
+			return fmt.Errorf("invalidate sessions: %w", err)
+		}
 	}
 	return tx.Commit()
 }
@@ -206,8 +208,15 @@ func (s *Sqlite) UpdateApiKeyLabel(ctx context.Context, opts db.UpdateApiKeyLabe
 	return err
 }
 
-func (s *Sqlite) DeleteApiKey(ctx context.Context, id int32) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM api_keys WHERE id = ?`, id)
+func (s *Sqlite) DeleteApiKey(ctx context.Context, id, userID int32) error {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM api_keys WHERE id = ? AND user_id = ?`, id, userID)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err == nil && n == 0 {
+		return db.ErrNotFound
+	}
 	return err
 }
 

@@ -184,11 +184,7 @@ func loadConfig(getenv func(string) string, version string) (*config, error) {
 	} else {
 		cfg.defaultUsername = getenv(DEFAULT_USERNAME_ENV)
 	}
-	if getenv(DEFAULT_PASSWORD_ENV) == "" {
-		cfg.defaultPw = "changeme"
-	} else {
-		cfg.defaultPw = getenv(DEFAULT_PASSWORD_ENV)
-	}
+	cfg.defaultPw = getenv(DEFAULT_PASSWORD_ENV)
 
 	cfg.defaultTheme = getenv(DEFAULT_THEME_ENV)
 

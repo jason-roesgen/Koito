@@ -18,7 +18,7 @@ If the environment variable is defined without **and** with the suffix at the sa
 
 ##### KOITO_DEFAULT_PASSWORD
 
-- Default: `changeme`
+- Default: random on first startup. Run `docker exec -it koito ./app reset-password` to obtain a password, or set this variable before first startup (8 or more characters, up to 72 bytes).
 - Description: The password for the user that is created on first startup. Only applies when running Koito for the first time.
 
 ##### KOITO_DEFAULT_THEME

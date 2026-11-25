@@ -108,9 +108,10 @@ type UpdateAlbumOpts struct {
 }
 
 type UpdateUserOpts struct {
-	ID       int32
-	Username string
-	Password string
+	KeepSession string
+	ID          int32
+	Username    string
+	Password    string
 }
 
 type AddArtistsToAlbumOpts struct {

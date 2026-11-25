@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gabehf/koito/engine/middleware"
@@ -72,7 +73,11 @@ func DeleteApiKeyHandler(store db.UserStore) http.HandlerFunc {
 			return
 		}
 
-		if err := store.DeleteApiKey(ctx, apiKeyID); err != nil {
+		if err := store.DeleteApiKey(ctx, apiKeyID, user.ID); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				utils.WriteError(w, "key not found", http.StatusNotFound)
+				return
+			}
 			l.Error().Err(err).Msg("DeleteApiKeyHandler: Failed to delete API key")
 			utils.WriteError(w, "failed to delete api key", http.StatusInternalServerError)
 			return

@@ -48,7 +48,6 @@ type SubsonicArtistResponse struct {
 const (
 	subsonicAlbumSearchFmtStr  = "/rest/search3?%s&f=json&query=%s&v=1.13.0&c=koito&artistCount=0&songCount=0&albumCount=10"
 	subsonicArtistSearchFmtStr = "/rest/search3?%s&f=json&query=%s&v=1.13.0&c=koito&artistCount=1&songCount=0&albumCount=0"
-	subsonicCoverArtFmtStr     = "/rest/getCoverArt?%s&id=%s&v=1.13.0&c=koito"
 )
 
 func NewSubsonicClient() *SubsonicClient {
@@ -61,21 +60,21 @@ func NewSubsonicClient() *SubsonicClient {
 }
 
 func (c *SubsonicClient) queue(ctx context.Context, req *http.Request) ([]byte, error) {
-	l := logger.FromContext(ctx)
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("Accept", "application/json")
 
 	resultChan := c.requestQueue.Enqueue(func(client *http.Client, done chan<- queue.RequestResult) {
 		resp, err := client.Do(req)
 		if err != nil {
-			l.Debug().Err(err).Str("url", req.RequestURI).Msg("Failed to contact ImageSrc")
-			done <- queue.RequestResult{Err: err}
+			done <- queue.RequestResult{Err: fmt.Errorf("failed to contact ImageSrc")}
 			return
-		} else if resp.StatusCode >= 300 || resp.StatusCode < 200 {
-			err = fmt.Errorf("received non-ok status from Subsonic: %s", resp.Status)
-			done <- queue.RequestResult{Body: nil, Err: err}
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode >= 300 || resp.StatusCode < 200 {
+			err = fmt.Errorf("received non-ok status from Subsonic: %s", resp.Status)
+			done <- queue.RequestResult{Err: err}
+			return
+		}
 
 		body, err := io.ReadAll(resp.Body)
 		done <- queue.RequestResult{Body: body, Err: err}
@@ -88,10 +87,10 @@ func (c *SubsonicClient) queue(ctx context.Context, req *http.Request) ([]byte, 
 func (c *SubsonicClient) getEntity(ctx context.Context, endpoint string, result any) error {
 	l := logger.FromContext(ctx)
 	url := c.url + endpoint
-	l.Debug().Msgf("Sending request to ImageSrc: GET %s", url)
+	l.Debug().Msg("Sending request to Subsonic")
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return fmt.Errorf("getEntity: %w", err)
+		return fmt.Errorf("invalid Subsonic request URL")
 	}
 	l.Debug().Msg("Adding ImageSrc request to queue")
 	body, err := c.queue(ctx, req)
@@ -120,9 +119,8 @@ func (c *SubsonicClient) GetAlbumImage(ctx context.Context, mbid *uuid.UUID, art
 		if err != nil {
 			return "", fmt.Errorf("GetAlbumImage: %v", err)
 		}
-		l.Debug().Any("subsonic_response", resp).Msg("")
 		if len(resp.SubsonicResponse.SearchResult3.Album) >= 1 {
-			return cfg.SubsonicUrl() + fmt.Sprintf(subsonicCoverArtFmtStr, c.authParams, url.QueryEscape(resp.SubsonicResponse.SearchResult3.Album[0].CoverArt)), nil
+			return coverPrefix + resp.SubsonicResponse.SearchResult3.Album[0].CoverArt, nil
 		}
 	}
 	// else do artist match
@@ -131,13 +129,12 @@ func (c *SubsonicClient) GetAlbumImage(ctx context.Context, mbid *uuid.UUID, art
 	if err != nil {
 		return "", fmt.Errorf("GetAlbumImage: %v", err)
 	}
-	l.Debug().Any("subsonic_response", resp).Msg("")
 	if len(resp.SubsonicResponse.SearchResult3.Album) < 1 {
 		return "", fmt.Errorf("GetAlbumImage: failed to get album art from subsonic")
 	}
 	for _, album := range resp.SubsonicResponse.SearchResult3.Album {
 		if album.Artist == artist {
-			return cfg.SubsonicUrl() + fmt.Sprintf(subsonicCoverArtFmtStr, c.authParams, url.QueryEscape(resp.SubsonicResponse.SearchResult3.Album[0].CoverArt)), nil
+			return coverPrefix + album.CoverArt, nil
 		}
 	}
 	return "", fmt.Errorf("GetAlbumImage: failed to get album art from subsonic")
@@ -154,7 +151,6 @@ func (c *SubsonicClient) GetArtistImage(ctx context.Context, mbid *uuid.UUID, ar
 		if err != nil {
 			return "", fmt.Errorf("GetArtistImage: %v", err)
 		}
-		l.Debug().Any("subsonic_response", resp).Msg("")
 		if len(resp.SubsonicResponse.SearchResult3.Artist) < 1 || resp.SubsonicResponse.SearchResult3.Artist[0].ArtistImageUrl == "" {
 			return "", fmt.Errorf("GetArtistImage: failed to get artist art")
 		}
@@ -168,7 +164,6 @@ func (c *SubsonicClient) GetArtistImage(ctx context.Context, mbid *uuid.UUID, ar
 	if err != nil {
 		return "", fmt.Errorf("GetArtistImage: %v", err)
 	}
-	l.Debug().Any("subsonic_response", resp).Msg("")
 	if len(resp.SubsonicResponse.SearchResult3.Artist) < 1 || resp.SubsonicResponse.SearchResult3.Artist[0].ArtistImageUrl == "" {
 		return "", fmt.Errorf("GetArtistImage: failed to get artist art")
 	}
@@ -176,5 +171,9 @@ func (c *SubsonicClient) GetArtistImage(ctx context.Context, mbid *uuid.UUID, ar
 	if err = ValidateImageURL(resp.SubsonicResponse.SearchResult3.Artist[0].ArtistImageUrl); err != nil {
 		return "", fmt.Errorf("GetArtistImage: failed to get validate image url")
 	}
-	return resp.SubsonicResponse.SearchResult3.Artist[0].ArtistImageUrl, nil
+	source := resp.SubsonicResponse.SearchResult3.Artist[0].ArtistImageUrl
+	if id := coverID(source); id != "" {
+		return coverPrefix + id, nil
+	}
+	return source, nil
 }

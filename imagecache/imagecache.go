@@ -58,11 +58,15 @@ func (s ImageSize) String() string {
 
 // DownloadImage downloads an image from the given URL, then saves it to the cache at source quality.
 func DownloadImage(imgid uuid.UUID, url string) error {
-	err := images.ValidateImageURL(url)
-	if err != nil {
-		return fmt.Errorf("DownloadImage: %w", err)
-	}
-	resp, err := http.Get(url)
+	return downloadImage(imgid, url, true)
+}
+
+func DownloadPublicImage(imgid uuid.UUID, url string) error {
+	return downloadImage(imgid, url, false)
+}
+
+func downloadImage(imgid uuid.UUID, url string, allowSavedCover bool) error {
+	resp, err := images.FetchImage(http.MethodGet, url, allowSavedCover)
 	if err != nil {
 		return fmt.Errorf("DownloadImage: http.Get: %w", err)
 	}
@@ -70,6 +74,9 @@ func DownloadImage(imgid uuid.UUID, url string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("DownloadImage: failed to download image, status: %s", resp.Status)
+	}
+	if !strings.HasPrefix(strings.ToLower(resp.Header.Get("Content-Type")), "image/") {
+		return errors.New("downloaded cover is not an image")
 	}
 
 	err = compressAndSaveImage(imgid, ImageSizeSource, resp.Body)
@@ -89,12 +96,12 @@ type ImageInfo struct {
 	Mime string
 }
 
+var resizeGroup singleflight.Group
+
 // GetImage takes the UUID image id and image filename e.g. "128x128.webp" and returns the path and mime type of the
 // image in the cache. If the image does not exist in the cache in either the desired or source sizes,
 // returns a fs.ErrNotExist error.
 func GetImage(imgid uuid.UUID, image string) (*ImageInfo, error) {
-
-	var resizeGroup singleflight.Group
 
 	imageSize, err := ParseImageSize(strings.Split(image, ".")[0])
 	if err != nil {
@@ -109,14 +116,14 @@ func GetImage(imgid uuid.UUID, image string) (*ImageInfo, error) {
 			return nil, fmt.Errorf("GetImage: image does not exist in cache: %w", err)
 		}
 
-		imageBuf, err := os.ReadFile(sourcePath)
-		if err != nil {
-			return nil, fmt.Errorf("GetImage: failed to read source file: %w", err)
-		}
-
 		resizeKey := imgid.String() + "/" + imageSize.String()
 		_, err, _ = resizeGroup.Do(resizeKey, func() (any, error) {
-			return nil, compressAndSaveImage(imgid, imageSize, bytes.NewReader(imageBuf))
+			source, err := os.Open(sourcePath)
+			if err != nil {
+				return nil, err
+			}
+			defer source.Close()
+			return nil, compressAndSaveImage(imgid, imageSize, source)
 		})
 		if err != nil {
 			return nil, fmt.Errorf("GetImage: failed to cache source file in desired size: %w", err)
@@ -166,26 +173,31 @@ func saveImage(imgid uuid.UUID, size ImageSize, data io.Reader) error {
 		return fmt.Errorf("saveImage: failed to create full image cache directory: %w", err)
 	}
 
-	// Create a file in the cache directory
-	file, err := os.Create(imagePath)
+	// Publish complete images atomically to concurrent readers.
+	file, err := os.CreateTemp(filepath.Dir(imagePath), ".cover-*")
 	if err != nil {
-		return fmt.Errorf("saveImage: failed to create image file: %w", err)
+		return err
 	}
-	defer file.Close()
-
-	// Save the image to the file
-	_, err = io.Copy(file, data)
-	if err != nil {
-		return fmt.Errorf("saveImage: failed to save image: %w", err)
+	defer os.Remove(file.Name())
+	_, copyErr := io.Copy(file, data)
+	closeErr := file.Close()
+	if copyErr != nil {
+		return copyErr
 	}
-
-	return nil
+	if closeErr != nil {
+		return closeErr
+	}
+	return os.Rename(file.Name(), imagePath)
 }
 
 func compressImage(size ImageSize, data io.Reader) (io.Reader, error) {
-	imgBytes, err := io.ReadAll(data)
+	const maxBytes = 10 << 20
+	imgBytes, err := io.ReadAll(io.LimitReader(data, maxBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("compressImage: io.ReadAll: %w", err)
+	}
+	if len(imgBytes) > maxBytes {
+		return nil, errors.New("image exceeds 10 MiB")
 	}
 	px := size.Width()
 
@@ -193,6 +205,9 @@ func compressImage(size ImageSize, data io.Reader) (io.Reader, error) {
 		ogsize, err := bimg.Size(imgBytes)
 		if err != nil {
 			return nil, fmt.Errorf("compressImage: bimg.Size: %w", err)
+		}
+		if ogsize.Height <= 0 || ogsize.Width <= 0 || ogsize.Width > 40_000_000/ogsize.Height {
+			return nil, errors.New("image exceeds dimension limit")
 		}
 		tmpx := min(ogsize.Width, ogsize.Height)
 		px = min(tmpx, ImageSizeSource.Width())

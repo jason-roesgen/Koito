@@ -9,7 +9,6 @@ import (
 	"github.com/gabehf/koito/imagecache"
 	"github.com/gabehf/koito/internal/catalog"
 	"github.com/gabehf/koito/internal/db"
-	"github.com/gabehf/koito/internal/images"
 	"github.com/gabehf/koito/internal/logger"
 	"github.com/gabehf/koito/internal/utils"
 	"github.com/google/uuid"
@@ -58,8 +57,8 @@ func ReplaceArtistImageHandler(store db.ArtistStore) http.HandlerFunc {
 			return
 		}
 
-		if artist.Image.Small != "" {
-			if err = imagecache.DeleteImage(*parseOldImage(artist.Image.Small)); err != nil {
+		if old := parseOldImage(artist.Image.Small); old != nil && *old != id {
+			if err = imagecache.DeleteImage(*old); err != nil {
 				l.Err(err).Msg("ReplaceArtistImageHandler: Failed to delete old image file")
 				utils.WriteError(w, "could not delete old image file", http.StatusInternalServerError)
 				return
@@ -106,8 +105,8 @@ func ReplaceAlbumImageHandler(store db.AlbumStore) http.HandlerFunc {
 			return
 		}
 
-		if album.Image.Small != "" {
-			if err = imagecache.DeleteImage(*parseOldImage(album.Image.Small)); err != nil {
+		if old := parseOldImage(album.Image.Small); old != nil && *old != id {
+			if err = imagecache.DeleteImage(*old); err != nil {
 				l.Err(err).Msg("ReplaceAlbumImageHandler: Failed to delete old image file")
 				utils.WriteError(w, "could not delete old image file", http.StatusInternalServerError)
 				return
@@ -126,14 +125,8 @@ func resolveImage(r *http.Request, l *zerolog.Logger) (uuid.UUID, string, error)
 	fileUrl := r.FormValue("image_url")
 	if fileUrl != "" {
 		l.Debug().Msg("resolveImage: Image identified as remote file")
-		if err := images.ValidateImageURL(fileUrl); err != nil {
-			l.Debug().AnErr("error", err).Msg("resolveImage: Invalid image URL")
-			return uuid.UUID{}, "", fmt.Errorf("url is invalid or not an image file")
-		}
-		l.Debug().Msg("resolveImage: Downloading image from source")
-		if err := imagecache.DownloadImage(id, fileUrl); err != nil {
-			l.Err(err).Msg("resolveImage: Failed to cache image")
-			return uuid.UUID{}, "", fmt.Errorf("failed to cache image")
+		if err := imagecache.DownloadPublicImage(id, fileUrl); err != nil {
+			return uuid.UUID{}, "", fmt.Errorf("failed to download or decode public image")
 		}
 		return id, fileUrl, nil
 	}
@@ -171,7 +164,7 @@ func resolveImage(r *http.Request, l *zerolog.Logger) (uuid.UUID, string, error)
 // parses the image id from /image/{uuid}/size.webp style links
 func parseOldImage(link string) *uuid.UUID {
 	ss := strings.Split(link, "/")
-	if len(ss) < 4 {
+	if len(ss) != 4 || ss[0] != "" || ss[1] != "image" {
 		return nil
 	}
 	if parsed, err := uuid.Parse(ss[2]); err != nil {

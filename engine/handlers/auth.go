@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gabehf/koito/engine/middleware"
 	"github.com/gabehf/koito/internal/db"
@@ -66,7 +67,8 @@ func LoginHandler(store db.UserStore) http.HandlerFunc {
 			Expires:  expiresAt,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   false,
+			Secure:   r.TLS != nil,
+			SameSite: http.SameSiteLaxMode,
 		})
 
 		l.Debug().Msgf("LoginHandler: User %d authenticated", user.ID)
@@ -97,6 +99,8 @@ func LogoutHandler(store db.UserStore) http.HandlerFunc {
 			Path:     "/",
 			HttpOnly: true,
 			MaxAge:   -1,
+			Secure:   r.TLS != nil,
+			SameSite: http.SameSiteLaxMode,
 		})
 
 		l.Debug().Msg("LogoutHandler: Session terminated")
@@ -138,8 +142,9 @@ func UpdateUserHandler(store db.UserStore) http.HandlerFunc {
 		}
 
 		body, err := utils.DecodeBody[struct {
-			Username *string `json:"username"`
-			Password *string `json:"password"`
+			Username        *string `json:"username"`
+			Password        *string `json:"password"`
+			CurrentPassword string  `json:"current_password"`
 		}](r)
 		if err != nil {
 			l.Debug().Msg("UpdateUserHandler: Invalid request body")
@@ -157,7 +162,18 @@ func UpdateUserHandler(store db.UserStore) http.HandlerFunc {
 		if body.Username != nil {
 			opts.Username = *body.Username
 		}
-		if body.Password != nil {
+		if body.Password != nil && *body.Password != "" {
+			if bcrypt.CompareHashAndPassword(user.Password, []byte(body.CurrentPassword)) != nil {
+				utils.WriteError(w, "current password is incorrect", http.StatusForbidden)
+				return
+			}
+			if len(*body.Password) > 72 || utf8.RuneCountInString(*body.Password) < 8 {
+				utils.WriteError(w, "password must have at least 8 characters and at most 72 bytes", http.StatusBadRequest)
+				return
+			}
+			if cookie, err := r.Cookie("koito_session"); err == nil {
+				opts.KeepSession = cookie.Value
+			}
 			opts.Password = *body.Password
 		}
 

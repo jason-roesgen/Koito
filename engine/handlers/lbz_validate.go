@@ -29,8 +29,7 @@ func LbzValidateTokenHandler() http.HandlerFunc {
 			l.Debug().Msg("LbzValidateTokenHandler: Invalid token, user not found in context")
 			response.Code = http.StatusUnauthorized
 			response.Error = "Incorrect Authorization"
-			w.WriteHeader(http.StatusUnauthorized)
-			utils.WriteJSON(w, http.StatusOK, response)
+			utils.WriteJSON(w, http.StatusUnauthorized, response)
 		} else {
 			l.Debug().Msgf("LbzValidateTokenHandler: Token valid for user '%s'", u.Username)
 			response.Code = http.StatusOK
