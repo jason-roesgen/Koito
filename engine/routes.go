@@ -74,6 +74,7 @@ func bindRoutes(
 			r.Get("/listen-activity", handlers.GetListenActivityHandler(db))
 			r.Get("/listening-by-hour", handlers.GetHourlyListeningHandler(db))
 			r.Get("/hall-of-fame", handlers.GetHallOfFameHandler(db))
+			r.Get("/repeat-sessions", handlers.GetRepeatSessionsHandler(db))
 			r.Get("/milestones", handlers.GetCertificationsHandler(db, "milestones"))
 			r.Get("/track/{id}/certifications", handlers.GetCertificationsHandler(db, "track"))
 			r.Get("/artist/{id}/certifications", handlers.GetCertificationsHandler(db, "artist"))

@@ -8,7 +8,7 @@
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc",
-    "test:calendar": "node --experimental-strip-types --test app/utils/chartCalendar.test.mjs",
+    "test:calendar": "node --experimental-strip-types --test app/utils/chartCalendar.test.mjs app/utils/repeatSessionDates.test.mjs",
     "test:hall-of-fame": "node --experimental-strip-types app/utils/hallOfFame.test.mjs"
   },
   "dependencies": {

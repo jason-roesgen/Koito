@@ -1,5 +1,6 @@
 import { demoHallOfFame } from "./app/utils/hallOfFame";
 import type { Plugin } from "vite";
+import type { RepeatSession, RepeatSessionPage } from "./api/repeatSessions";
 import type { Album, Artist, Track, ImageList } from "./api/api";
 import type { Certification, CertificationMetric, TrackCertifications, MilestoneHistory } from "./api/certifications";
 import { minuteMilestones, playMilestones } from "./app/utils/milestones";
@@ -43,6 +44,34 @@ export function demoDataPlugin(): Plugin {
       history.push({ time: time.toISOString(), track: tracks[index] });
     }
   });
+  // Seed complete, separated runs before the regular fixture window.
+  const repeatSessions: RepeatSession[] = Array.from({ length: 42 }, (_, index) => {
+    const track = tracks[showcase.length + (29 + index * 17) % (tracks.length - showcase.length)];
+    const playCount = [58, 32, 24, 19][index] ?? 3 + (index * 7) % 15;
+    const start = now.getTime() - (493 - index) * day;
+    const step = duration(track);
+    for (let play = 0; play < playCount; play++) {
+      history.push({ time: new Date(start + play * step * 1000).toISOString(), track });
+    }
+    const elapsed = (playCount - 1) * step;
+    return {
+      track, started_at: new Date(start).toISOString(), ended_at: new Date(start + elapsed * 1000).toISOString(),
+      play_count: playCount, estimated_seconds: playCount * step, elapsed_seconds: elapsed,
+    };
+  });
+  const repeatOverview = repeatSessions.reduce<RepeatSessionPage["overview"]>((overview, session) => {
+    overview.session_count++;
+    if (session.estimated_seconds !== null) {
+      overview.estimated_seconds += session.estimated_seconds;
+      overview.sessions_with_estimates++;
+    }
+    const longest = overview.longest_session;
+    if (!longest || session.play_count > longest.play_count ||
+      (session.play_count === longest.play_count && session.started_at > longest.started_at)) {
+      overview.longest_session = session;
+    }
+    return overview;
+  }, { session_count: 0, estimated_seconds: 0, sessions_with_estimates: 0, longest_session: null });
   history.sort((a, b) => b.time.localeCompare(a.time) || a.track.id - b.track.id);
   type Listen = typeof history[number];
   const matches = (l: Listen, p: URLSearchParams) =>
@@ -147,6 +176,28 @@ export function demoDataPlugin(): Plugin {
         const send = (body: unknown, status = 200) => { res.statusCode = status; res.setHeader("Content-Type", "application/json"); res.setHeader("Cache-Control", "no-store"); res.end(JSON.stringify(body)); };
         if (req.method !== "GET") return send({ error: "Synthetic demo is read-only. Disable demo mode to edit local data." }, 403);
         const path = url.pathname.slice("/apis/web/v1/".length), p = url.searchParams;
+        if (path === "repeat-sessions") {
+          const query = p.get("q")?.trim().toLowerCase() || "";
+          const from = p.has("from") ? Number(p.get("from")) * 1000 : -Infinity;
+          const to = p.has("to") ? Number(p.get("to")) * 1000 : Infinity;
+          const sort = p.get("sort");
+          const direction = p.get("order") === "asc" ? 1 : -1;
+          const items = repeatSessions.filter(row => {
+            const start = Date.parse(row.started_at);
+            return start >= from && start < to &&
+              [row.track.title, ...row.track.artists.map(artist => artist.name)]
+                .some(name => name.toLowerCase().includes(query));
+          }).sort((a, b) => {
+            const date = Date.parse(a.started_at) - Date.parse(b.started_at);
+            const difference = sort === "date" ? date : sort === "time"
+              ? (a.estimated_seconds ?? 0) - (b.estimated_seconds ?? 0) : a.play_count - b.play_count;
+            return direction * difference || -date || a.track.id - b.track.id;
+          });
+          const params = new URLSearchParams(p);
+          params.set("limit", "20");
+          params.set("page", String(Math.min(Math.max(1, Math.ceil(items.length / 20)), Number(p.get("page")) || 1)));
+          return send({ ...page(items, params), minimum_plays: 3, overview: repeatOverview } satisfies RepeatSessionPage);
+        }
         const rows = select(p);
         const metric = p.get("metric") === "time" ? "time" : "plays";
         if (path === "hall-of-fame") {

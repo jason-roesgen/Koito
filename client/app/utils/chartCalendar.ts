@@ -150,3 +150,19 @@ export function chartApiParams(params: URLSearchParams, now = new Date()): URLSe
   }
   return next;
 }
+
+export function repeatSessionDateBounds(from: string, to: string) {
+  const boundary = (value: string, end: boolean) => {
+    if (!value) return undefined;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new RangeError("Invalid calendar date");
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    if (localDateValue(date) !== value) throw new RangeError("Invalid calendar date");
+    const range = chartCalendarRange({ period: "day", date });
+    return Math.floor((end ? range.end : range.start).getTime() / 1000);
+  };
+  const start = boundary(from, false);
+  const end = boundary(to, true);
+  if (start !== undefined && end !== undefined && end <= start) throw new RangeError("Date range is reversed");
+  return { start, end };
+}

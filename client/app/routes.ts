@@ -10,6 +10,7 @@ export default [
   route("/chart/top/tracks", "routes/Charts/TrackChart.tsx"),
   route("/listens", "routes/Charts/Listens.tsx"),
   route("/hall-of-fame", "routes/HallOfFame.tsx"),
+  route("/listening-evolution", "routes/ListeningEvolution.tsx"),
   route("/rewind", "routes/RewindPage.tsx"),
   route("/theme-helper", "routes/ThemeHelper.tsx"),
 ] satisfies RouteConfig;
