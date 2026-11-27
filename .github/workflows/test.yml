@@ -56,7 +56,7 @@ jobs:
         set -euo pipefail
         for timezone in Europe/Berlin America/New_York UTC America/Santiago; do
           echo "Testing timezone: $timezone"
-          TZ="$timezone" node --experimental-strip-types --test client/app/utils/chartCalendar.test.mjs
+          TZ="$timezone" node --experimental-strip-types --test client/app/utils/chartCalendar.test.mjs client/app/utils/repeatSessionDates.test.mjs
         done
     - name: Verify Hall of Fame demo projections
       run: node --experimental-strip-types client/app/utils/hallOfFame.test.mjs

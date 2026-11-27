@@ -1,4 +1,4 @@
-import { ExternalLink, History, Home, Info, Trophy } from "lucide-react";
+import { ExternalLink, History, Home, Info, Repeat, Trophy } from "lucide-react";
 import SidebarSearch from "./SidebarSearch";
 import SidebarItem from "./SidebarItem";
 import SidebarSettings from "./SidebarSettings";
@@ -32,7 +32,7 @@ export default function Sidebar() {
             text-(--color-fg-secondary)
         "
     >
-      <div className="flex gap-4 sm:flex-col">
+      <div className="flex gap-2 sm:flex-col sm:gap-4">
         <SidebarSearch size={iconSize} />
         <div className="hidden sm:flex"></div>
         <SidebarItem
@@ -56,6 +56,10 @@ export default function Sidebar() {
         <SidebarItem space={10} to="/hall-of-fame" name="Hall of Fame" onClick={() => {}} modal={<></>}>
           <Trophy size={iconSize} aria-hidden="true" />
           <span className="sr-only">Hall of Fame</span>
+        </SidebarItem>
+        <SidebarItem space={10} to="/listening-evolution" name="Listening Evolution" onClick={() => {}} modal={<></>}>
+          <Repeat size={iconSize} aria-hidden="true" />
+          <span className="sr-only">Listening Evolution</span>
         </SidebarItem>
       </div>
       <div className="flex gap-4 sm:flex-col">
